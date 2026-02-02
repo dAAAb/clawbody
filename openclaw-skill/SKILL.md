@@ -1,96 +1,100 @@
-# Reachy Mini Robot Body
+# ClawBody - Robot Body for OpenClaw
 
-Give your OpenClaw agent a physical presence with Reachy Mini robot.
+Give your OpenClaw agent (Clawson) a physical robot body with Reachy Mini.
 
 ## Description
 
-This skill enables OpenClaw to embody a Reachy Mini robot, allowing your AI assistant to:
+ClawBody embodies your OpenClaw AI assistant in a Reachy Mini robot, enabling it to:
 
+- **Hear**: Listen to voice commands via the robot's microphone
 - **See**: View the world through the robot's camera
-- **Hear**: Listen to conversations via the robot's microphone  
 - **Speak**: Respond with natural voice through the robot's speaker
-- **Move**: Express emotions and reactions through expressive head movements
+- **Move**: Express emotions through expressive head movements and dances
 
-Using OpenAI's Realtime API, the robot responds with sub-second latency for natural conversation flow.
+Using a hybrid architecture with OpenAI Realtime API for voice I/O and OpenClaw for intelligence, the robot responds with sub-second latency for natural conversation.
+
+## Architecture
+
+```
+You speak → Reachy Mini 🎤
+                ↓
+       OpenAI Realtime API
+    (speech recognition + TTS)
+                ↓
+        OpenClaw Gateway
+      (Clawson's brain 🦞)
+                ↓
+   Robot speaks & moves 🤖💃
+```
 
 ## Requirements
 
 ### Hardware
-- [Reachy Mini](https://www.hf.co/reachy-mini/) robot (Wireless or Lite version)
-- The robot must be powered on and reachable on the network
+- [Reachy Mini](https://github.com/pollen-robotics/reachy_mini) robot (Wireless or Lite)
 
 ### Software
 - Python 3.11+
 - OpenAI API key with Realtime API access
-- OpenClaw gateway running (for extended capabilities)
+- OpenClaw gateway running on your network
 
 ## Installation
 
 ```bash
-# Install the package
-pip install reachy-mini-openclaw
-
-# Or from source
-git clone https://github.com/yourusername/reachy_mini_openclaw.git
-cd reachy_mini_openclaw
+# Clone from HuggingFace
+git clone https://huggingface.co/spaces/tomrikert/clawbody
+cd clawbody
 pip install -e .
 ```
 
 ## Configuration
 
-Create a `.env` file with your OpenAI API key:
+Create a `.env` file:
 
 ```bash
 OPENAI_API_KEY=sk-your-key-here
-OPENCLAW_GATEWAY_URL=http://localhost:18789
+OPENCLAW_GATEWAY_URL=http://your-host-ip:18789
+OPENCLAW_TOKEN=your-gateway-token
 ```
 
 ## Usage
 
-### Console Mode
 ```bash
-reachy-openclaw
-```
+# Run ClawBody
+clawbody
 
-### Web UI Mode
-```bash
-reachy-openclaw --gradio
-```
+# With debug logging
+clawbody --debug
 
-### As Reachy Mini App
-Install from the robot's dashboard app store.
+# With Gradio web UI
+clawbody --gradio
+```
 
 ## Features
 
-### Voice Conversation
-Real-time voice interaction using OpenAI's Realtime API for natural, low-latency conversation.
+### Real-time Voice Conversation
+Ultra-low latency voice interaction using OpenAI's Realtime API.
+
+### OpenClaw Intelligence
+Full Clawson capabilities - tools, memory, personality - through the OpenClaw gateway.
 
 ### Expressive Movements
-The robot automatically:
-- Nods and moves while speaking (audio-driven wobble)
-- Looks toward speakers
-- Expresses emotions through head movements
-- Performs dances when appropriate
+- Audio-driven head wobble while speaking
+- Emotion expressions (happy, curious, thinking, excited)
+- Dance animations
+- Natural head movements
 
 ### Vision
-Ask the robot to describe what it sees:
-> "What do you see in front of you?"
-
-### OpenClaw Integration
-Full access to OpenClaw's tool ecosystem:
-> "What's the weather like today?"
-> "Add a reminder for tomorrow"
-> "Turn on the living room lights"
+Ask Clawson to describe what it sees through the robot's camera.
 
 ## Links
 
-- [GitHub Repository](https://github.com/yourusername/reachy_mini_openclaw)
+- [HuggingFace Space](https://huggingface.co/spaces/tomrikert/clawbody)
 - [Reachy Mini SDK](https://github.com/pollen-robotics/reachy_mini)
 - [OpenClaw Documentation](https://docs.openclaw.ai)
 
 ## Author
 
-Tom
+Tom (tomrikert)
 
 ## License
 
