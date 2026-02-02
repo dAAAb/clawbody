@@ -12,6 +12,17 @@ tags:
  - openclaw
  - clawson
  - embodied-ai
+ - ai-assistant
+ - voice-assistant
+ - robotics
+ - openai-realtime
+ - conversational-ai
+ - physical-ai
+ - robot-body
+ - speech-to-speech
+ - multimodal
+ - vision
+ - expressive-robot
 ---
 
 # 🦞🤖 ClawBody
