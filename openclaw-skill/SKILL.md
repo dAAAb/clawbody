@@ -1,8 +1,13 @@
+---
+name: clawbody
+description: Give your OpenClaw AI agent a physical robot body with Reachy Mini. Voice conversation via OpenAI Realtime API, vision through camera, and expressive movements.
+---
+
 # ClawBody - Robot Body for OpenClaw
 
 Give your OpenClaw agent (Clawson) a physical robot body with Reachy Mini.
 
-## Description
+## Overview
 
 ClawBody embodies your OpenClaw AI assistant in a Reachy Mini robot, enabling it to:
 
@@ -40,10 +45,15 @@ You speak → Reachy Mini 🎤
 ## Installation
 
 ```bash
-# Clone from HuggingFace
-git clone https://huggingface.co/spaces/tomrikert/clawbody
+# Clone from GitHub
+git clone https://github.com/tomrikert/clawbody
 cd clawbody
 pip install -e .
+```
+
+Or from HuggingFace:
+```bash
+git clone https://huggingface.co/spaces/tomrikert/clawbody
 ```
 
 ## Configuration
@@ -72,22 +82,23 @@ clawbody --gradio
 ## Features
 
 ### Real-time Voice Conversation
-Ultra-low latency voice interaction using OpenAI's Realtime API.
+Ultra-low latency voice interaction using OpenAI's Realtime API for speech recognition and text-to-speech.
 
 ### OpenClaw Intelligence
-Full Clawson capabilities - tools, memory, personality - through the OpenClaw gateway.
+Full Clawson capabilities - tools, memory, personality - through the OpenClaw gateway HTTP API.
 
 ### Expressive Movements
 - Audio-driven head wobble while speaking
 - Emotion expressions (happy, curious, thinking, excited)
 - Dance animations
-- Natural head movements
+- Natural head tracking
 
 ### Vision
 Ask Clawson to describe what it sees through the robot's camera.
 
 ## Links
 
+- [GitHub Repository](https://github.com/tomrikert/clawbody)
 - [HuggingFace Space](https://huggingface.co/spaces/tomrikert/clawbody)
 - [Reachy Mini SDK](https://github.com/pollen-robotics/reachy_mini)
 - [OpenClaw Documentation](https://docs.openclaw.ai)
