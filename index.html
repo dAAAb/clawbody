@@ -3,127 +3,173 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClawBody - OpenClaw + Reachy Mini</title>
+    <title>ClawBody - Reachy Mini App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <div class="logo">🦞🤖</div>
-            <h1>ClawBody</h1>
-            <p class="tagline">Give your OpenClaw AI agent a physical robot body</p>
-        </header>
 
-        <main>
-            <section class="hero">
-                <div class="hero-content">
-                    <h2>Clawson, Embodied</h2>
-                    <p>
-                        ClawBody bridges <a href="https://github.com/openclaw/openclaw">OpenClaw</a> 
-                        with <a href="https://github.com/pollen-robotics/reachy_mini">Reachy Mini</a>,
-                        letting your AI assistant see, hear, speak, and move in the physical world.
-                    </p>
+<section class="hero">
+    <div class="topline">
+        <div class="brand">
+            <span class="logo">🦞</span>
+            <span class="brand-name">ClawBody</span>
+        </div>
+        <div class="pill">Voice conversation · OpenClaw AI · Expressive motion</div>
+    </div>
+
+    <div class="hero-grid">
+        <div class="hero-copy">
+            <div class="eyebrow">Reachy Mini App</div>
+            <h1>Give OpenClaw a physical body.</h1>
+            <p class="lede">
+                Connect your OpenClaw AI assistant (Clawson) to a Reachy Mini robot. 
+                Ultra-responsive voice conversation through OpenAI Realtime API, 
+                intelligent responses from OpenClaw, and expressive robot movements.
+            </p>
+            <div class="hero-actions">
+                <a href="#features" class="btn primary">Explore features</a>
+                <a href="#how-it-works" class="btn ghost">See how it works</a>
+            </div>
+            <div class="hero-badges">
+                <span>🎙️ OpenAI Realtime</span>
+                <span>🦞 OpenClaw Gateway</span>
+                <span>💃 Expressive movement</span>
+                <span>👀 Vision</span>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <div class="glass-card">
+                <div class="architecture-preview">
+<pre>
+  You speak → Reachy Mini 🎤
+                  ↓
+         OpenAI Realtime API
+      (speech recognition + TTS)
+                  ↓
+          OpenClaw Gateway
+        (Clawson's brain 🦞)
+                  ↓
+     Robot speaks & moves 🤖💃
+</pre>
                 </div>
-            </section>
+                <p class="caption">Hybrid architecture: OpenAI for voice I/O, OpenClaw for intelligence.</p>
+            </div>
+        </div>
+    </div>
+</section>
 
-            <section class="features">
-                <h3>Features</h3>
-                <div class="feature-grid">
-                    <div class="feature">
-                        <span class="feature-icon">🎤</span>
-                        <h4>Real-time Voice</h4>
-                        <p>OpenAI Realtime API for sub-second voice interaction</p>
-                    </div>
-                    <div class="feature">
-                        <span class="feature-icon">🧠</span>
-                        <h4>OpenClaw Intelligence</h4>
-                        <p>Full Clawson capabilities - tools, memory, personality</p>
-                    </div>
-                    <div class="feature">
-                        <span class="feature-icon">👀</span>
-                        <h4>Vision</h4>
-                        <p>See through the robot's camera and describe the world</p>
-                    </div>
-                    <div class="feature">
-                        <span class="feature-icon">💃</span>
-                        <h4>Expressive Movement</h4>
-                        <p>Natural head movements, emotions, dances, and wobble</p>
-                    </div>
-                </div>
-            </section>
+<section class="section" id="features">
+    <div class="section-header">
+        <h2>What's inside</h2>
+        <p class="intro">
+            ClawBody combines real-time voice conversation, OpenClaw intelligence, and expressive robot motion.
+        </p>
+    </div>
+    <div class="feature-grid">
+        <div class="feature-card">
+            <div class="icon">🎤</div>
+            <h3>Real-time voice</h3>
+            <p>Sub-second latency using OpenAI's Realtime API for natural, responsive conversation.</p>
+        </div>
+        <div class="feature-card">
+            <div class="icon">🦞</div>
+            <h3>OpenClaw brain</h3>
+            <p>Full Clawson capabilities—tools, memory, personality—through the OpenClaw gateway.</p>
+        </div>
+        <div class="feature-card">
+            <div class="icon">👀</div>
+            <h3>Vision</h3>
+            <p>See through the robot's camera. Ask Clawson what it sees and get visual descriptions.</p>
+        </div>
+        <div class="feature-card">
+            <div class="icon">💃</div>
+            <h3>Expressive motion</h3>
+            <p>Audio-driven head wobble, emotions, dances, and natural movements while speaking.</p>
+        </div>
+        <div class="feature-card">
+            <div class="icon">🎭</div>
+            <h3>Clawson embodied</h3>
+            <p>Your friendly space lobster AI assistant, now with a physical presence in the world.</p>
+        </div>
+        <div class="feature-card">
+            <div class="icon">⚡</div>
+            <h3>Hybrid architecture</h3>
+            <p>Best of both worlds: OpenAI's voice tech + OpenClaw's full AI capabilities.</p>
+        </div>
+    </div>
+</section>
 
-            <section class="architecture">
-                <h3>How It Works</h3>
-                <div class="arch-diagram">
-                    <div class="arch-flow">
-                        <div class="arch-box user">🗣️ You speak</div>
-                        <div class="arch-arrow">→</div>
-                        <div class="arch-box robot">🤖 Reachy Mini<br><small>microphone + camera</small></div>
-                        <div class="arch-arrow">→</div>
-                        <div class="arch-box clawbody">🦞 ClawBody<br><small>OpenAI Realtime</small></div>
-                        <div class="arch-arrow">→</div>
-                        <div class="arch-box openclaw">🧠 OpenClaw<br><small>Clawson responds</small></div>
-                    </div>
-                    <div class="arch-return">
-                        <div class="arch-arrow-return">← Robot speaks & moves ←</div>
-                    </div>
-                </div>
-            </section>
+<section class="section story" id="how-it-works">
+    <div class="story-grid">
+        <div class="story-card">
+            <h3>How it works</h3>
+            <p class="story-text">From speech to response in under a second</p>
+            <ol class="story-list">
+                <li><span>🎤</span> Robot microphone captures your voice continuously.</li>
+                <li><span>🔇</span> Voice Activity Detection identifies when you stop speaking.</li>
+                <li><span>📝</span> OpenAI Realtime transcribes your speech instantly.</li>
+                <li><span>🦞</span> OpenClaw processes your message with full AI capabilities.</li>
+                <li><span>🔊</span> OpenAI Realtime speaks the response naturally.</li>
+                <li><span>🤖</span> Robot moves expressively while speaking.</li>
+            </ol>
+        </div>
+        <div class="story-card secondary">
+            <h3>Prerequisites</h3>
+            <p class="story-text">What you need to get started</p>
+            <div class="chips">
+                <span class="chip">🦞 OpenClaw Gateway</span>
+                <span class="chip">🔑 OpenAI API Key</span>
+                <span class="chip">🤖 Reachy Mini</span>
+                <span class="chip">🐍 Python 3.11+</span>
+            </div>
+            <p class="story-text" style="margin-top: 1rem;">
+                This app requires a running OpenClaw gateway on your network, 
+                an OpenAI API key with Realtime access, and a Reachy Mini robot.
+            </p>
+            <a href="https://huggingface.co/spaces/tomrikert/clawbody/blob/main/README.md" class="btn ghost wide" style="margin-top: 1rem;">
+                View installation guide
+            </a>
+        </div>
+    </div>
+</section>
 
-            <section class="installation">
-                <h3>Quick Start</h3>
-                <div class="code-block">
-                    <pre><code># SSH into your Reachy Mini
+<section class="section">
+    <div class="section-header">
+        <h2>Quick start</h2>
+        <p class="intro">Get ClawBody running on your Reachy Mini</p>
+    </div>
+    <div class="story-card">
+        <div class="architecture-preview">
+<pre>
+# SSH into your Reachy Mini
 ssh pollen@reachy-mini.local
 
 # Clone and install
-git clone https://huggingface.co/spaces/YOUR_USERNAME/clawbody
+git clone https://huggingface.co/spaces/tomrikert/clawbody
 cd clawbody
 pip install -e .
 
-# Configure
+# Configure (edit with your OpenClaw gateway URL and OpenAI key)
 cp .env.example .env
-# Edit .env with your OpenAI key and OpenClaw gateway URL
+nano .env
 
-# Run
-clawbody</code></pre>
-                </div>
-            </section>
-
-            <section class="requirements">
-                <h3>Requirements</h3>
-                <ul>
-                    <li><strong>Reachy Mini</strong> robot (Wireless or Lite)</li>
-                    <li><strong>OpenClaw</strong> gateway running on your network</li>
-                    <li><strong>OpenAI API key</strong> with Realtime API access</li>
-                </ul>
-            </section>
-
-            <section class="links">
-                <h3>Resources</h3>
-                <div class="link-grid">
-                    <a href="https://github.com/openclaw/openclaw" class="link-card">
-                        <span>🦞</span>
-                        <span>OpenClaw</span>
-                    </a>
-                    <a href="https://github.com/pollen-robotics/reachy_mini" class="link-card">
-                        <span>🤖</span>
-                        <span>Reachy Mini SDK</span>
-                    </a>
-                    <a href="https://platform.openai.com/docs/guides/realtime" class="link-card">
-                        <span>🎙️</span>
-                        <span>OpenAI Realtime</span>
-                    </a>
-                </div>
-            </section>
-        </main>
-
-        <footer>
-            <p>
-                Made with 🦞 by <a href="https://github.com/yourusername">Tom</a>
-                · Apache 2.0 License
-            </p>
-        </footer>
+# Run ClawBody
+clawbody
+</pre>
+        </div>
     </div>
+</section>
+
+<footer class="footer">
+    <p>
+        ClawBody — giving OpenClaw a physical presence with Reachy Mini.<br>
+        Learn more about <a href="https://github.com/openclaw/openclaw">OpenClaw</a> and 
+        <a href="https://github.com/pollen-robotics/reachy_mini">Reachy Mini</a>.
+    </p>
+</footer>
+
 </body>
 </html>
