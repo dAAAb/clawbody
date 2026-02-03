@@ -69,10 +69,10 @@ class OpenClawBridge:
         self.timeout = timeout
         
         # Session state - use consistent user ID for session continuity
+        # Note: OpenClaw maintains conversation memory on its end, so we don't
+        # need to track messages locally. This allows the robot to be aware of
+        # conversations happening on other channels (WhatsApp, web, etc.)
         self.session_user = "reachy-mini-robot"
-        
-        # Conversation history for context
-        self.messages: list[dict] = []
         
         # Connection state
         self._connected = False
@@ -132,6 +132,10 @@ class OpenClawBridge:
     ) -> OpenClawResponse:
         """Send a message to OpenClaw and get a response.
         
+        OpenClaw maintains conversation memory on its end, so it will be aware
+        of conversations from other channels (WhatsApp, web, etc.). We only send
+        the current message and let OpenClaw handle the context.
+        
         Args:
             message: The user's message (transcribed speech)
             image_b64: Optional base64-encoded image from robot camera
@@ -149,18 +153,16 @@ class OpenClawBridge:
         else:
             content = message
         
-        # Add to conversation history
-        self.messages.append({"role": "user", "content": content})
-        
-        # Build request messages
+        # Build request messages - just the current message
+        # OpenClaw maintains conversation memory on its end
         request_messages = []
         
-        # Add system context if provided
+        # Add system context if provided (e.g., "User is speaking to you through the robot")
         if system_context:
             request_messages.append({"role": "system", "content": system_context})
         
-        # Add conversation history (keep last 20 messages for context)
-        request_messages.extend(self.messages[-20:])
+        # Add the current user message
+        request_messages.append({"role": "user", "content": content})
         
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(self.timeout)) as client:
@@ -180,8 +182,6 @@ class OpenClawBridge:
                 choices = data.get("choices", [])
                 if choices:
                     assistant_content = choices[0].get("message", {}).get("content", "")
-                    # Add assistant response to history
-                    self.messages.append({"role": "assistant", "content": assistant_content})
                     return OpenClawResponse(content=assistant_content)
                 return OpenClawResponse(content="", error="No response from OpenClaw")
                 
@@ -199,6 +199,9 @@ class OpenClawBridge:
     ) -> AsyncIterator[str]:
         """Stream a response from OpenClaw.
         
+        OpenClaw maintains conversation memory on its end, so it will be aware
+        of conversations from other channels (WhatsApp, web, etc.).
+        
         Args:
             message: The user's message
             image_b64: Optional base64-encoded image
@@ -215,10 +218,8 @@ class OpenClawBridge:
         else:
             content = message
         
-        # Add to conversation history
-        self.messages.append({"role": "user", "content": content})
-        
-        full_response = ""
+        # Only send current message - OpenClaw handles memory
+        request_messages = [{"role": "user", "content": content}]
         
         async with httpx.AsyncClient(timeout=httpx.Timeout(self.timeout)) as client:
             try:
@@ -228,7 +229,7 @@ class OpenClawBridge:
                     f"{self.gateway_url}/v1/chat/completions",
                     json={
                         "model": f"openclaw:{self.agent_id}",
-                        "messages": self.messages[-20:],
+                        "messages": request_messages,
                         "user": self.session_user,
                         "stream": True,
                     },
@@ -247,14 +248,9 @@ class OpenClawBridge:
                                 delta = choices[0].get("delta", {})
                                 chunk = delta.get("content", "")
                                 if chunk:
-                                    full_response += chunk
                                     yield chunk
                         except json.JSONDecodeError:
                             continue
-                
-                # Add complete response to history
-                if full_response:
-                    self.messages.append({"role": "assistant", "content": full_response})
                             
             except httpx.HTTPStatusError as e:
                 logger.error("OpenClaw streaming error: %d", e.response.status_code)
@@ -262,11 +258,6 @@ class OpenClawBridge:
             except Exception as e:
                 logger.error("OpenClaw streaming error: %s", e)
                 yield f"[Error: {e}]"
-    
-    def clear_history(self) -> None:
-        """Clear conversation history to start fresh."""
-        self.messages.clear()
-        logger.info("Conversation history cleared")
     
     @property
     def is_connected(self) -> bool:
