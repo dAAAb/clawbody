@@ -327,7 +327,7 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
             # Generate audio for the message we just added
             await self.connection.response.create(
                 response={
-                    "modalities": ["audio"],  # Audio only - text is already set
+                    "modalities": ["text", "audio"],  # Must include both
                 }
             )
         except Exception as e:
