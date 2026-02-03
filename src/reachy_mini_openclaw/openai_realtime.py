@@ -152,12 +152,13 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
         logger.info("Connecting to OpenAI Realtime API with model: %s", model)
         
         async with self.client.beta.realtime.connect(model=model) as conn:
-            # Configure session for voice I/O only (no auto-response)
-            # We'll manually trigger responses after getting OpenClaw's text
+            # Configure session for voice I/O only (NO auto-response)
+            # We handle all AI responses through OpenClaw, OpenAI is just for
+            # transcription (STT) and text-to-speech (TTS)
             await conn.session.update(
                 session={
                     "modalities": ["text", "audio"],
-                    "instructions": "You are a text-to-speech system. Read the provided text naturally and expressively. Do not add anything - just speak what you're given.",
+                    "instructions": "You are a text-to-speech system ONLY. Your ONLY job is to speak the text you are given. Do NOT generate your own responses. Do NOT add commentary. Do NOT answer questions. Just read what you're told to read.",
                     "voice": get_session_voice(),
                     "input_audio_format": "pcm16",
                     "output_audio_format": "pcm16",
@@ -169,9 +170,10 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
                         "threshold": 0.5,
                         "prefix_padding_ms": 300,
                         "silence_duration_ms": 500,
+                        "create_response": False,  # CRITICAL: Don't auto-generate responses!
                     },
-                    "tools": get_tool_specs(),  # Robot movement tools
-                    "tool_choice": "auto",
+                    "tools": [],  # No tools - OpenClaw handles everything
+                    "tool_choice": "none",
                 },
             )
             logger.info("OpenAI Realtime session configured (hybrid mode)")
@@ -308,11 +310,24 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
             return
             
         try:
-            # Create a response that will be spoken
+            # Add the text as an assistant message, then create audio response
+            # This ensures OpenAI just speaks the text without adding anything
+            await self.connection.conversation.item.create(
+                item={
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": text,
+                        }
+                    ],
+                }
+            )
+            # Generate audio for the message we just added
             await self.connection.response.create(
                 response={
-                    "modalities": ["text", "audio"],
-                    "instructions": f"Say exactly this, naturally and expressively: {text}",
+                    "modalities": ["audio"],  # Audio only - text is already set
                 }
             )
         except Exception as e:
