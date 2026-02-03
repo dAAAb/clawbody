@@ -280,6 +280,14 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
                     image_b64 = base64.b64encode(buffer).decode('utf-8')
                     logger.info("Captured camera image for OpenClaw")
             
+            # Check if this might be a long-running query (weather, search, etc.)
+            # If so, say something first to keep the connection alive
+            long_keywords = ["weather", "search", "find", "look up", "check", "what's the"]
+            might_be_long = any(kw in transcript.lower() for kw in long_keywords)
+            
+            if might_be_long:
+                await self._speak_text("Let me check on that...")
+            
             # Send to OpenClaw
             logger.info("Sending to OpenClaw: %s", transcript[:50])
             response = await self.openclaw_bridge.chat(
