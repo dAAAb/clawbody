@@ -68,11 +68,10 @@ class OpenClawBridge:
         self.agent_id = agent_id or os.getenv("OPENCLAW_AGENT_ID") or config.OPENCLAW_AGENT_ID
         self.timeout = timeout
         
-        # Session state - use consistent user ID for session continuity
-        # Note: OpenClaw maintains conversation memory on its end, so we don't
-        # need to track messages locally. This allows the robot to be aware of
-        # conversations happening on other channels (WhatsApp, web, etc.)
-        self.session_user = "reachy-mini-robot"
+        # Session state - use the same user ID as other channels (WhatsApp, web, etc.)
+        # This allows the robot to share conversation context across all channels.
+        # Set OPENCLAW_USER_ID in .env to match your WhatsApp user ID.
+        self.session_user = os.getenv("OPENCLAW_USER_ID") or config.OPENCLAW_USER_ID or "tom"
         
         # Connection state
         self._connected = False
