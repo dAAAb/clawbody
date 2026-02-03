@@ -21,6 +21,8 @@ def launch_gradio(
     robot_name: Optional[str] = None,
     enable_camera: bool = True,
     enable_openclaw: bool = True,
+    enable_face_tracking: bool = True,
+    head_tracker_type: Optional[str] = None,
     share: bool = False,
 ) -> None:
     """Launch the Gradio web UI.
@@ -30,6 +32,8 @@ def launch_gradio(
         robot_name: Robot name for connection
         enable_camera: Whether to enable camera
         enable_openclaw: Whether to enable OpenClaw
+        enable_face_tracking: Whether to enable face tracking
+        head_tracker_type: Head tracker type ('yolo', 'mediapipe', or None)
         share: Whether to create a public URL
     """
     from reachy_mini_openclaw.prompts import get_available_profiles, save_custom_profile
@@ -42,7 +46,7 @@ def launch_gradio(
         """Start the conversation."""
         nonlocal app_instance
         
-        from reachy_mini_openclaw.main import ReachyOpenClawCore
+        from reachy_mini_openclaw.main import ClawBodyCore
         import asyncio
         import threading
         
@@ -50,11 +54,13 @@ def launch_gradio(
             return "Already running"
         
         try:
-            app_instance = ReachyOpenClawCore(
+            app_instance = ClawBodyCore(
                 gateway_url=gateway_url,
                 robot_name=robot_name,
                 enable_camera=enable_camera,
                 enable_openclaw=enable_openclaw,
+                enable_face_tracking=enable_face_tracking,
+                head_tracker_type=head_tracker_type,
             )
             
             # Run in background thread
@@ -162,6 +168,8 @@ def launch_gradio(
             - **Voice**: {config.OPENAI_VOICE}
             - **Camera Enabled**: {enable_camera}
             - **OpenClaw Enabled**: {enable_openclaw}
+            - **Face Tracking**: {enable_face_tracking}
+            - **Head Tracker**: {head_tracker_type or 'auto-detect'}
             
             Edit `.env` file to change these settings.
             """)

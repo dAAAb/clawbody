@@ -63,9 +63,28 @@ dependencies = [
 wireless = [
     "pygobject",
 ]
+# YOLO-based face tracking (recommended - more accurate)
+yolo_vision = [
+    "opencv-python",
+    "ultralytics",
+    "supervision",
+]
+# MediaPipe-based face tracking (lighter weight alternative)
+mediapipe_vision = [
+    "mediapipe>=0.10.14",
+]
+# All vision options
+all_vision = [
+    "opencv-python",
+    "ultralytics",
+    "supervision",
+    "mediapipe>=0.10.14",
+]
+# Legacy alias
 vision = [
     "opencv-python",
     "ultralytics",
+    "supervision",
 ]
 dev = [
     "pytest",

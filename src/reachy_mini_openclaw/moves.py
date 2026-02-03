@@ -324,6 +324,15 @@ class MovementManager:
                 break
             self._handle_command(cmd, payload, current_time)
             
+    def _update_face_tracking(self, current_time: float) -> None:
+        """Get face tracking offsets from camera worker thread."""
+        if self.camera_worker is not None:
+            offsets = self.camera_worker.get_face_tracking_offsets()
+            self.state.face_tracking_offsets = offsets
+        else:
+            # No camera worker, use neutral offsets
+            self.state.face_tracking_offsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            
     def _handle_command(self, cmd: str, payload: Any, current_time: float) -> None:
         """Handle a single command."""
         if cmd == "queue_move":
@@ -516,6 +525,9 @@ class MovementManager:
             # Manage moves
             self._manage_move_queue(loop_start)
             self._manage_breathing(loop_start)
+            
+            # Update face tracking offsets from camera worker
+            self._update_face_tracking(loop_start)
             
             # Compose pose
             head, antennas, body_yaw = self._compose_pose(loop_start)

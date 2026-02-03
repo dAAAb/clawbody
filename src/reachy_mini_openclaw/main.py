@@ -112,6 +112,17 @@ Examples:
         help="Disable OpenClaw integration"
     )
     parser.add_argument(
+        "--head-tracker",
+        choices=["yolo", "mediapipe", None],
+        default=None,
+        help="Head tracker type for face tracking (default: auto-detect)"
+    )
+    parser.add_argument(
+        "--no-face-tracking",
+        action="store_true",
+        help="Disable face tracking"
+    )
+    parser.add_argument(
         "--profile",
         type=str,
         help="Custom personality profile to use"
@@ -136,6 +147,8 @@ class ClawBodyCore:
         robot_name: Optional[str] = None,
         enable_camera: bool = True,
         enable_openclaw: bool = True,
+        enable_face_tracking: bool = True,
+        head_tracker_type: Optional[str] = None,
         robot: Optional["ReachyMini"] = None,
         external_stop_event: Optional[threading.Event] = None,
     ):
@@ -146,6 +159,8 @@ class ClawBodyCore:
             robot_name: Optional robot name for connection
             enable_camera: Whether to enable camera functionality
             enable_openclaw: Whether to enable OpenClaw integration
+            enable_face_tracking: Whether to enable face tracking
+            head_tracker_type: Type of head tracker ('yolo', 'mediapipe', or None for auto)
             robot: Optional pre-initialized robot (for app framework)
             external_stop_event: Optional external stop event
         """
@@ -190,9 +205,39 @@ class ClawBodyCore:
                 
             logger.info("Connected to robot: %s", self.robot.client.get_status())
         
-        # Initialize movement system
+        # Initialize camera worker with face tracking
+        self.camera_worker = None
+        self.head_tracker = None
+        
+        if enable_camera and enable_face_tracking:
+            logger.info("Initializing face tracking...")
+            try:
+                from reachy_mini_openclaw.vision import get_head_tracker
+                from reachy_mini_openclaw.camera_worker import CameraWorker
+                
+                # Get head tracker (auto-detect if not specified)
+                tracker_type = head_tracker_type or config.HEAD_TRACKER_TYPE
+                self.head_tracker = get_head_tracker(tracker_type)
+                
+                if self.head_tracker is not None:
+                    self.camera_worker = CameraWorker(self.robot, self.head_tracker)
+                    logger.info("Face tracking initialized")
+                else:
+                    logger.warning("No head tracker available - face tracking disabled")
+            except ImportError as e:
+                logger.warning(f"Face tracking dependencies not available: {e}")
+                logger.warning("Install with: pip install ultralytics supervision  OR  pip install mediapipe")
+            except Exception as e:
+                logger.warning(f"Failed to initialize face tracking: {e}")
+        elif enable_camera and not enable_face_tracking:
+            logger.info("Face tracking disabled by configuration")
+        
+        # Initialize movement system (with camera worker for face tracking)
         logger.info("Initializing movement system...")
-        self.movement_manager = MovementManager(current_robot=self.robot)
+        self.movement_manager = MovementManager(
+            current_robot=self.robot,
+            camera_worker=self.camera_worker,
+        )
         self.head_wobbler = HeadWobbler(
             set_speech_offsets=self.movement_manager.set_speech_offsets
         )
@@ -205,13 +250,6 @@ class ClawBodyCore:
                 gateway_url=gateway_url,
                 gateway_token=config.OPENCLAW_TOKEN,
             )
-        
-        # Camera worker (optional)
-        self.camera_worker = None
-        if enable_camera:
-            # Camera worker would be initialized here if needed
-            # For now, we use the robot's built-in camera access
-            pass
         
         # Create tool dependencies
         self.deps = ToolDependencies(
@@ -294,6 +332,11 @@ class ClawBodyCore:
         self.movement_manager.start()
         self.head_wobbler.start()
         
+        # Start camera worker for face tracking
+        if self.camera_worker is not None:
+            logger.info("Starting face tracking...")
+            self.camera_worker.start()
+        
         # Start audio
         logger.info("Starting audio...")
         self.robot.media.start_recording()
@@ -327,6 +370,10 @@ class ClawBodyCore:
             if not task.done():
                 task.cancel()
                 
+        # Stop camera worker
+        if self.camera_worker is not None:
+            self.camera_worker.stop()
+        
         # Stop movement system
         self.head_wobbler.stop()
         self.movement_manager.stop()
@@ -359,6 +406,8 @@ class ClawBodyApp:
             reachy_mini: Pre-initialized ReachyMini instance
             stop_event: Threading event to signal stop
         """
+        from reachy_mini_openclaw.config import config
+        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
@@ -368,6 +417,8 @@ class ClawBodyApp:
             gateway_url=gateway_url,
             robot=reachy_mini,
             external_stop_event=stop_event,
+            enable_face_tracking=config.ENABLE_FACE_TRACKING,
+            head_tracker_type=config.HEAD_TRACKER_TYPE,
         )
         
         try:
@@ -398,6 +449,8 @@ def main() -> None:
             robot_name=args.robot_name,
             enable_camera=not args.no_camera,
             enable_openclaw=not args.no_openclaw,
+            enable_face_tracking=not args.no_face_tracking,
+            head_tracker_type=args.head_tracker,
         )
     else:
         # Console mode
@@ -406,6 +459,8 @@ def main() -> None:
             robot_name=args.robot_name,
             enable_camera=not args.no_camera,
             enable_openclaw=not args.no_openclaw,
+            enable_face_tracking=not args.no_face_tracking,
+            head_tracker_type=args.head_tracker,
         )
         
         try:
