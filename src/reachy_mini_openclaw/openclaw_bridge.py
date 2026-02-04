@@ -261,6 +261,99 @@ class OpenClawBridge:
     def is_connected(self) -> bool:
         """Check if bridge is connected to gateway."""
         return self._connected
+    
+    async def get_agent_context(self) -> Optional[str]:
+        """Fetch the agent's current context, personality, and memory summary.
+        
+        This asks OpenClaw to provide a summary of:
+        - The agent's personality and identity
+        - Recent conversation context
+        - Important memories about the user
+        - Current state (time, location awareness, etc.)
+        
+        Returns:
+            A context string to use as system instructions, or None if failed
+        """
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+                # Ask OpenClaw to summarize its context for the robot body
+                response = await client.post(
+                    f"{self.gateway_url}/v1/chat/completions",
+                    json={
+                        "model": f"openclaw:{self.agent_id}",
+                        "messages": [
+                            {
+                                "role": "system", 
+                                "content": """You are being asked to provide your current context for your robot body.
+Output a comprehensive context summary that another AI can use to embody you. Include:
+
+1. YOUR IDENTITY: Who you are, your name, your personality traits, how you speak
+2. USER CONTEXT: What you know about the user you're talking to (name, preferences, relationship)
+3. RECENT CONTEXT: Summary of recent conversations or important ongoing topics
+4. MEMORIES: Key things you remember that are relevant to interactions
+5. CURRENT STATE: Any relevant time/date awareness, ongoing tasks, or situational context
+
+Be specific and personal. This context will be used by your robot body to speak and act AS YOU.
+Output ONLY the context summary, no preamble."""
+                            },
+                            {
+                                "role": "user",
+                                "content": "Provide your current context summary for the robot body."
+                            }
+                        ],
+                        "stream": False,
+                    },
+                    headers=self._get_headers(),
+                )
+                response.raise_for_status()
+                
+                data = response.json()
+                choices = data.get("choices", [])
+                if choices:
+                    context = choices[0].get("message", {}).get("content", "")
+                    if context:
+                        logger.info("Retrieved agent context from OpenClaw (%d chars)", len(context))
+                        return context
+                        
+                logger.warning("No context returned from OpenClaw")
+                return None
+                
+        except Exception as e:
+            logger.error("Failed to get agent context: %s", e)
+            return None
+    
+    async def sync_conversation(self, user_message: str, assistant_response: str) -> None:
+        """Sync a conversation turn back to OpenClaw for memory continuity.
+        
+        This ensures OpenClaw's memory stays in sync with robot conversations.
+        
+        Args:
+            user_message: What the user said
+            assistant_response: What the robot/AI responded
+        """
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+                # Send the conversation to OpenClaw with a special system message
+                # indicating this is a sync from the robot body
+                await client.post(
+                    f"{self.gateway_url}/v1/chat/completions",
+                    json={
+                        "model": f"openclaw:{self.agent_id}",
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "[ROBOT BODY SYNC] The following conversation happened through your Reachy Mini robot body. Remember it as part of your ongoing conversation with the user."
+                            },
+                            {"role": "user", "content": user_message},
+                            {"role": "assistant", "content": assistant_response}
+                        ],
+                        "stream": False,
+                    },
+                    headers=self._get_headers(),
+                )
+                logger.debug("Synced conversation to OpenClaw")
+        except Exception as e:
+            logger.debug("Failed to sync conversation: %s", e)
 
 
 # Global bridge instance (lazy initialization)

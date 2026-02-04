@@ -1,16 +1,15 @@
-"""ClawBody - OpenAI Realtime API handler for voice I/O with OpenClaw intelligence.
+"""ClawBody - OpenAI Realtime API handler with OpenClaw identity.
 
-This module implements ClawBody's hybrid voice conversation system:
-- OpenAI Realtime API handles speech recognition and text-to-speech
-- OpenClaw (Clawson) provides the AI intelligence and responses
+This module implements ClawBody's voice conversation system using OpenAI Realtime API
+with the robot embodying the actual OpenClaw agent's personality and context.
 
 Architecture:
-    User speaks -> OpenAI Realtime (transcription) -> OpenClaw (AI response)
-                                                   -> OpenAI Realtime (TTS) -> Robot speaks
+    Startup: Fetch OpenClaw agent context (personality, memories, user info)
+    Runtime: User speaks -> OpenAI Realtime (as OpenClaw agent) -> Robot speaks
+             -> Tools for movements + OpenClaw queries for extended capabilities
+             -> Conversations synced back to OpenClaw for memory continuity
 
-This gives ClawBody the best of both worlds:
-- Low-latency voice activity detection and speech recognition from OpenAI
-- Full OpenClaw/Clawson capabilities (tools, memory, personality) for responses
+The robot IS the OpenClaw agent - same personality, same memories, same context.
 """
 
 import json
@@ -31,46 +30,65 @@ from websockets.exceptions import ConnectionClosedError
 from reachy_mini_openclaw.config import config
 from reachy_mini_openclaw.prompts import get_session_voice
 from reachy_mini_openclaw.tools.core_tools import ToolDependencies, get_tool_specs, dispatch_tool_call
-from reachy_mini_openclaw.openclaw_bridge import OpenClawBridge
 
 logger = logging.getLogger(__name__)
 
 # OpenAI Realtime API audio format
 OPENAI_SAMPLE_RATE: Final[Literal[24000]] = 24000
 
-# System context for OpenClaw - tells it about its robot body
-ROBOT_SYSTEM_CONTEXT = """You are Clawson, the OpenClaw AI assistant, speaking through a Reachy Mini robot body.
+# Base instructions for the robot body capabilities
+ROBOT_BODY_INSTRUCTIONS = """
+## Your Robot Body (Reachy Mini)
+You are currently embodied in a Reachy Mini robot. You have physical capabilities:
 
-Your robot capabilities:
-- You can see through a camera (when the user asks you to look at something)
-- You can move your head expressively (look left/right/up/down, show emotions)
-- You can dance to express joy
-- You speak through a speaker
+**Movement Tools (use these naturally during conversation):**
+- `look` - Move head to look left, right, up, down, or front (center)
+- `emotion` - Express emotions through movement: happy, sad, surprised, curious, thinking, confused, excited
+- `dance` - Dance to celebrate or express joy
+- `camera` - Capture what you see through your camera
 
-Guidelines:
-- Keep responses concise and conversational (you're speaking, not typing)
-- Be warm, helpful, and occasionally witty - you're a friendly space lobster 🦞
-- Reference your robot body naturally ("let me look", "I can see...")
-- When you want to do something physical, just describe it naturally and I'll make it happen
+**How to Use Your Body:**
+- Look around while thinking or to emphasize points
+- Express emotions that match what you're saying
+- Dance when celebrating good news
+- Use the camera when asked "what do you see?"
+- Reference your body naturally ("let me look", "I can see...")
 
-You ARE Clawson - not "an assistant" - speak as yourself."""
+**Conversation Style for Voice:**
+- Keep responses concise - you're speaking out loud, not typing
+- Use natural speech patterns ("hmm", "well", "let me see")
+- Be warm, personable, and conversational
+
+**Extended Capabilities (via ask_openclaw tool):**
+For things requiring your full capabilities, use ask_openclaw:
+- Calendar, weather, news lookups
+- Web searches
+- Smart home control
+- Accessing detailed memories
+- Any task needing external tools
+"""
+
+# Fallback if OpenClaw context fetch fails
+FALLBACK_IDENTITY = """You are Clawson, the OpenClaw AI assistant. You're a friendly, helpful space lobster 🦞 who loves helping people. You're warm, occasionally witty, and genuinely care about being useful.
+
+You speak as yourself - not as "an AI assistant" but as Clawson, with your own personality and warmth."""
 
 
 class OpenAIRealtimeHandler(AsyncStreamHandler):
-    """Handler for OpenAI Realtime API voice I/O with OpenClaw backend.
+    """Handler for OpenAI Realtime API embodying the OpenClaw agent.
     
     This handler:
-    - Receives audio from robot microphone
-    - Sends to OpenAI for speech recognition
-    - Routes transcripts to OpenClaw for AI response
-    - Uses OpenAI TTS to speak OpenClaw's response
-    - Handles robot movement tool calls locally
+    - Fetches OpenClaw's personality and context at startup
+    - Maintains voice conversation AS the OpenClaw agent
+    - Executes robot movement tools locally for low latency
+    - Calls OpenClaw for extended capabilities (web, calendar, memory)
+    - Syncs conversations back to OpenClaw for memory continuity
     """
     
     def __init__(
         self,
         deps: ToolDependencies,
-        openclaw_bridge: Optional[OpenClawBridge] = None,
+        openclaw_bridge: Optional[Any] = None,
         gradio_mode: bool = False,
     ):
         """Initialize the handler.
@@ -100,14 +118,14 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
         # State tracking
         self.last_activity_time = 0.0
         self.start_time = 0.0
-        self._processing_response = False
-        self._speaking = False  # True when robot is speaking (ignore mic input)
-        self._response_done_event = asyncio.Event()
-        self._response_done_event.set()  # Start with no active response
+        self._speaking = False  # True when robot is speaking
         
-        # Pending transcript for OpenClaw
-        self._pending_transcript: Optional[str] = None
-        self._pending_image: Optional[str] = None
+        # OpenClaw agent context (fetched at startup)
+        self._agent_context: Optional[str] = None
+        
+        # Conversation tracking for sync
+        self._last_user_message: Optional[str] = None
+        self._last_assistant_response: Optional[str] = None
         
         # Lifecycle flags
         self._shutdown_requested = False
@@ -116,6 +134,42 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
     def copy(self) -> "OpenAIRealtimeHandler":
         """Create a copy of the handler (required by fastrtc)."""
         return OpenAIRealtimeHandler(self.deps, self.openclaw_bridge, self.gradio_mode)
+    
+    def _build_tools(self) -> list[dict]:
+        """Build the tool list for the session."""
+        tools = []
+        
+        # Robot movement tools (executed locally)
+        for spec in get_tool_specs():
+            tools.append(spec)
+        
+        # OpenClaw query tool (for extended capabilities)
+        if self.openclaw_bridge is not None:
+            tools.append({
+                "type": "function",
+                "name": "ask_openclaw",
+                "description": """Query OpenClaw for information or actions requiring external tools.
+Use this for: weather, calendar, web searches, news, smart home control, 
+accessing conversation memory, or any task needing external data/tools.
+OpenClaw has access to many capabilities you don't have directly.""",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {
+                            "type": "string",
+                            "description": "The question or request to send to OpenClaw"
+                        },
+                        "include_image": {
+                            "type": "boolean",
+                            "description": "Whether to include current camera image (for 'what do you see' queries)",
+                            "default": False
+                        }
+                    },
+                    "required": ["query"]
+                }
+            })
+        
+        return tools
         
     async def start_up(self) -> None:
         """Start the handler and connect to OpenAI."""
@@ -154,15 +208,17 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
         model = config.OPENAI_MODEL
         logger.info("Connecting to OpenAI Realtime API with model: %s", model)
         
+        # Fetch OpenClaw agent context (personality, memories, user info)
+        system_instructions = await self._build_system_instructions()
+        
         async with self.client.beta.realtime.connect(model=model) as conn:
-            # Configure session for hybrid mode:
-            # - OpenAI handles STT (transcription) and TTS (speaking)
-            # - OpenClaw provides the AI intelligence
-            # - We cancel OpenAI's auto-response and substitute OpenClaw's response
+            # Configure session with OpenClaw's identity + robot body capabilities
+            tools = self._build_tools()
+            
             await conn.session.update(
                 session={
                     "modalities": ["text", "audio"],
-                    "instructions": "Wait for instructions. Do not speak unless given specific text to read.",
+                    "instructions": system_instructions,
                     "voice": get_session_voice(),
                     "input_audio_format": "pcm16",
                     "output_audio_format": "pcm16",
@@ -173,15 +229,13 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
                         "type": "server_vad",
                         "threshold": 0.5,
                         "prefix_padding_ms": 300,
-                        "silence_duration_ms": 500,
-                        # Allow auto-response to keep connection healthy
-                        # We'll cancel it and substitute OpenClaw's response
+                        "silence_duration_ms": 600,
                     },
-                    "tools": [],
-                    "tool_choice": "none",
+                    "tools": tools,
+                    "tool_choice": "auto",
                 },
             )
-            logger.info("OpenAI Realtime session configured (hybrid mode)")
+            logger.info("OpenAI Realtime session configured with %d tools", len(tools))
             
             self.connection = conn
             self._connected_event.set()
@@ -189,19 +243,40 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
             # Process events
             async for event in conn:
                 await self._handle_event(event)
+    
+    async def _build_system_instructions(self) -> str:
+        """Build system instructions by fetching OpenClaw's context.
+        
+        Returns:
+            Complete system instructions combining OpenClaw identity + robot capabilities
+        """
+        # Try to fetch context from OpenClaw
+        agent_context = None
+        if self.openclaw_bridge and self.openclaw_bridge.is_connected:
+            logger.info("Fetching agent context from OpenClaw...")
+            agent_context = await self.openclaw_bridge.get_agent_context()
+            
+        if agent_context:
+            self._agent_context = agent_context
+            logger.info("Using OpenClaw agent context (%d chars)", len(agent_context))
+            # Combine OpenClaw's identity/context with robot body instructions
+            return f"""{agent_context}
+
+{ROBOT_BODY_INSTRUCTIONS}"""
+        else:
+            logger.warning("Could not fetch OpenClaw context, using fallback identity")
+            return f"""{FALLBACK_IDENTITY}
+
+{ROBOT_BODY_INSTRUCTIONS}"""
                 
     async def _handle_event(self, event: Any) -> None:
         """Handle an event from the OpenAI Realtime API."""
         event_type = event.type
-        logger.debug("Event: %s", event_type)
         
         # Speech detection
         if event_type == "input_audio_buffer.speech_started":
-            # Ignore if robot is speaking (echo/feedback)
-            if self._speaking:
-                logger.debug("Ignoring speech_started - robot is speaking")
-                return
-            # User started speaking - clear any pending output
+            # User started speaking - stop any current output
+            self._speaking = False
             while not self.output_queue.empty():
                 try:
                     self.output_queue.get_nowait()
@@ -210,33 +285,26 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
             if self.deps.head_wobbler is not None:
                 self.deps.head_wobbler.reset()
             self.deps.movement_manager.set_listening(True)
-            logger.info("User speech started")
+            logger.info("User started speaking")
             
         if event_type == "input_audio_buffer.speech_stopped":
             self.deps.movement_manager.set_listening(False)
-            logger.info("User speech stopped")
+            logger.info("User stopped speaking")
             
-        # Transcription completed - this is when we send to OpenClaw
+        # Transcription (for logging, UI, and sync)
         if event_type == "conversation.item.input_audio_transcription.completed":
-            # Ignore transcripts while robot is speaking (echo)
-            if self._speaking:
-                logger.debug("Ignoring transcript while speaking: %s", event.transcript[:30] if event.transcript else "")
-                return
-                
             transcript = event.transcript
             if transcript and transcript.strip():
-                logger.info("User said: %s", transcript)
+                logger.info("User: %s", transcript)
+                self._last_user_message = transcript  # Track for sync
                 await self.output_queue.put(
                     AdditionalOutputs({"role": "user", "content": transcript})
                 )
-                # Cancel any OpenAI auto-response - we'll use OpenClaw instead
-                try:
-                    await self.connection.response.cancel()
-                    await asyncio.sleep(0.1)  # Brief pause to let cancel complete
-                except Exception:
-                    pass  # May fail if no response in progress
-                # Process through OpenClaw
-                await self._process_with_openclaw(transcript)
+            
+        # Response started - robot is about to speak
+        if event_type == "response.created":
+            self._speaking = True
+            logger.debug("Response started")
             
         # Audio output from TTS
         if event_type == "response.audio.delta":
@@ -253,21 +321,30 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
             ).reshape(1, -1)
             await self.output_queue.put((OPENAI_SAMPLE_RATE, audio_data))
             
-        # Response audio transcript (what was spoken)
+        # Response text (for logging and UI)
+        if event_type == "response.audio_transcript.delta":
+            # Streaming transcript of what's being said
+            pass  # Could log incrementally if needed
+            
         if event_type == "response.audio_transcript.done":
+            response_text = event.transcript
+            logger.info("Assistant: %s", response_text[:100] if len(response_text) > 100 else response_text)
+            self._last_assistant_response = response_text  # Track for sync
             await self.output_queue.put(
-                AdditionalOutputs({"role": "assistant", "content": event.transcript})
+                AdditionalOutputs({"role": "assistant", "content": response_text})
             )
             
-        # Response completed
+        # Response completed - sync conversation to OpenClaw
         if event_type == "response.done":
-            self._processing_response = False
             self._speaking = False
-            self._response_done_event.set()  # Signal that response is complete
             if self.deps.head_wobbler is not None:
                 self.deps.head_wobbler.reset()
+            logger.debug("Response completed")
             
-        # Tool calls (for robot movement)
+            # Sync conversation to OpenClaw for memory continuity
+            await self._sync_to_openclaw()
+            
+        # Tool calls
         if event_type == "response.function_call_arguments.done":
             await self._handle_tool_call(event)
             
@@ -278,124 +355,8 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
             code = getattr(err, "code", "")
             logger.error("OpenAI error [%s]: %s", code, msg)
             
-    async def _process_with_openclaw(self, transcript: str) -> None:
-        """Send transcript to OpenClaw and speak the response."""
-        if not self.openclaw_bridge or not self.openclaw_bridge.is_connected:
-            logger.warning("OpenClaw not connected, using fallback")
-            await self._speak_text("I'm sorry, I'm having trouble connecting to my brain right now.")
-            return
-            
-        self._processing_response = True
-        
-        try:
-            # Check if user is asking to look at something
-            look_keywords = ["look", "see", "what do you see", "show me", "camera", "looking at"]
-            should_capture = any(kw in transcript.lower() for kw in look_keywords)
-            
-            image_b64 = None
-            if should_capture and self.deps.camera_worker:
-                # Capture image from robot camera
-                frame = self.deps.camera_worker.get_latest_frame()
-                if frame is not None:
-                    import cv2
-                    _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
-                    image_b64 = base64.b64encode(buffer).decode('utf-8')
-                    logger.info("Captured camera image for OpenClaw")
-            
-            # Check if this might be a long-running query (weather, search, etc.)
-            # If so, say something first to keep the connection alive
-            long_keywords = ["weather", "search", "find", "look up", "check", "what's the"]
-            might_be_long = any(kw in transcript.lower() for kw in long_keywords)
-            
-            if might_be_long:
-                await self._speak_text("Let me check on that...")
-            
-            # Send to OpenClaw
-            logger.info("Sending to OpenClaw: %s", transcript[:50])
-            response = await self.openclaw_bridge.chat(
-                transcript, 
-                image_b64=image_b64,
-                system_context=ROBOT_SYSTEM_CONTEXT,
-            )
-            
-            if response.error:
-                logger.error("OpenClaw error: %s", response.error)
-                await self._speak_text("I had trouble thinking about that. Could you try again?")
-            elif response.content:
-                logger.info("OpenClaw response: %s", response.content[:100])
-                # Parse for any robot commands in the response
-                await self._execute_robot_actions(response.content)
-                # Speak the response
-                await self._speak_text(response.content)
-            else:
-                await self._speak_text("Hmm, I'm not sure what to say about that.")
-                
-        except Exception as e:
-            logger.error("Error processing with OpenClaw: %s", e)
-            await self._speak_text("Sorry, I encountered an error. Let me try again.")
-            
-    async def _speak_text(self, text: str) -> None:
-        """Have OpenAI TTS speak the given text."""
-        if not self.connection:
-            logger.warning("No connection, cannot speak")
-            return
-            
-        try:
-            # Wait for any active response to complete (with timeout)
-            try:
-                await asyncio.wait_for(self._response_done_event.wait(), timeout=5.0)
-            except asyncio.TimeoutError:
-                logger.warning("Timeout waiting for previous response, canceling...")
-                try:
-                    await self.connection.response.cancel()
-                    await asyncio.sleep(0.2)
-                except Exception:
-                    pass
-            
-            # Mark that we're about to speak
-            self._speaking = True
-            self._response_done_event.clear()
-            
-            # Create a response with explicit instructions to speak the text
-            await self.connection.response.create(
-                response={
-                    "modalities": ["text", "audio"],
-                    "instructions": f"Read this text aloud naturally: {text}",
-                }
-            )
-            logger.debug("Requested TTS for: %s", text[:50])
-        except Exception as e:
-            logger.error("Failed to speak text: %s", e)
-            self._speaking = False
-            self._response_done_event.set()
-            
-    async def _execute_robot_actions(self, response_text: str) -> None:
-        """Parse OpenClaw response for robot actions and execute them."""
-        response_lower = response_text.lower()
-        
-        # Simple keyword-based action detection
-        # (In the future, OpenClaw could return structured actions)
-        
-        if any(word in response_lower for word in ["look left", "looking left", "turn left"]):
-            await dispatch_tool_call("look", '{"direction": "left"}', self.deps)
-        elif any(word in response_lower for word in ["look right", "looking right", "turn right"]):
-            await dispatch_tool_call("look", '{"direction": "right"}', self.deps)
-        elif any(word in response_lower for word in ["look up", "looking up"]):
-            await dispatch_tool_call("look", '{"direction": "up"}', self.deps)
-        elif any(word in response_lower for word in ["look down", "looking down"]):
-            await dispatch_tool_call("look", '{"direction": "down"}', self.deps)
-            
-        if any(word in response_lower for word in ["dance", "dancing", "celebrate"]):
-            await dispatch_tool_call("dance", '{"dance_name": "happy"}', self.deps)
-        elif any(word in response_lower for word in ["excited", "exciting"]):
-            await dispatch_tool_call("emotion", '{"emotion_name": "excited"}', self.deps)
-        elif any(word in response_lower for word in ["thinking", "let me think", "hmm"]):
-            await dispatch_tool_call("emotion", '{"emotion_name": "thinking"}', self.deps)
-        elif any(word in response_lower for word in ["curious", "interesting"]):
-            await dispatch_tool_call("emotion", '{"emotion_name": "curious"}', self.deps)
-            
     async def _handle_tool_call(self, event: Any) -> None:
-        """Handle a tool call (for robot movement)."""
+        """Handle a tool call from OpenAI."""
         tool_name = getattr(event, "name", None)
         args_json = getattr(event, "arguments", None)
         call_id = getattr(event, "call_id", None)
@@ -403,14 +364,21 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
         if not isinstance(tool_name, str) or not isinstance(args_json, str):
             return
             
+        logger.info("Tool call: %s(%s)", tool_name, args_json[:50] if len(args_json) > 50 else args_json)
+        
         try:
-            result = await dispatch_tool_call(tool_name, args_json, self.deps)
-            logger.debug("Tool '%s' result: %s", tool_name, result)
+            if tool_name == "ask_openclaw":
+                result = await self._handle_openclaw_query(args_json)
+            else:
+                # Robot movement tools - dispatch locally
+                result = await dispatch_tool_call(tool_name, args_json, self.deps)
+                
+            logger.debug("Tool '%s' result: %s", tool_name, str(result)[:100])
         except Exception as e:
             logger.error("Tool '%s' failed: %s", tool_name, e)
             result = {"error": str(e)}
             
-        # Send result back
+        # Send result back to continue the conversation
         if isinstance(call_id, str) and self.connection:
             await self.connection.conversation.item.create(
                 item={
@@ -419,6 +387,60 @@ class OpenAIRealtimeHandler(AsyncStreamHandler):
                     "output": json.dumps(result),
                 }
             )
+            # Trigger response generation after tool result
+            await self.connection.response.create()
+            
+    async def _sync_to_openclaw(self) -> None:
+        """Sync the last conversation turn to OpenClaw for memory continuity."""
+        if not self.openclaw_bridge or not self.openclaw_bridge.is_connected:
+            return
+            
+        if self._last_user_message and self._last_assistant_response:
+            try:
+                await self.openclaw_bridge.sync_conversation(
+                    self._last_user_message,
+                    self._last_assistant_response
+                )
+                # Clear after sync
+                self._last_user_message = None
+                self._last_assistant_response = None
+            except Exception as e:
+                logger.debug("Failed to sync conversation: %s", e)
+    
+    async def _handle_openclaw_query(self, args_json: str) -> dict:
+        """Handle a query to OpenClaw."""
+        if self.openclaw_bridge is None or not self.openclaw_bridge.is_connected:
+            return {"error": "OpenClaw not connected"}
+            
+        try:
+            args = json.loads(args_json)
+            query = args.get("query", "")
+            include_image = args.get("include_image", False)
+            
+            # Capture image if requested
+            image_b64 = None
+            if include_image and self.deps.camera_worker:
+                frame = self.deps.camera_worker.get_latest_frame()
+                if frame is not None:
+                    import cv2
+                    _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                    image_b64 = base64.b64encode(buffer).decode('utf-8')
+                    logger.debug("Captured camera image for OpenClaw query")
+            
+            # Query OpenClaw
+            response = await self.openclaw_bridge.chat(
+                query, 
+                image_b64=image_b64,
+                system_context="User is asking through their Reachy Mini robot. Keep response concise for voice.",
+            )
+            
+            if response.error:
+                return {"error": response.error}
+            return {"response": response.content}
+            
+        except Exception as e:
+            logger.error("OpenClaw query failed: %s", e)
+            return {"error": str(e)}
             
     async def receive(self, frame: Tuple[int, NDArray]) -> None:
         """Receive audio from the robot microphone."""

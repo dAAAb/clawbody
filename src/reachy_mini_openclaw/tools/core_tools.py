@@ -211,26 +211,65 @@ async def _handle_look(args: dict, deps: ToolDependencies) -> dict:
 
 
 async def _handle_camera(args: dict, deps: ToolDependencies) -> dict:
-    """Handle the camera tool - capture and return image."""
+    """Handle the camera tool - capture image and get description from OpenClaw.
+    
+    Since OpenAI Realtime doesn't have vision, we send the image to OpenClaw
+    for analysis and return the description.
+    """
+    logger.info("Camera tool called, camera_worker=%s", deps.camera_worker is not None)
+    
     if deps.camera_worker is None:
+        logger.warning("Camera worker is None")
         return {"error": "Camera not available"}
     
     try:
         frame = deps.camera_worker.get_latest_frame()
+        logger.info("Got frame from camera_worker: %s", frame is not None)
+        
         if frame is None:
-            return {"error": "No frame available"}
+            # Try getting frame directly from robot as fallback
+            logger.info("Trying direct robot camera access...")
+            if deps.robot is not None:
+                try:
+                    frame = deps.robot.media.get_frame()
+                    logger.info("Direct frame capture: %s", frame is not None)
+                except Exception as e:
+                    logger.error("Direct frame capture failed: %s", e)
+        
+        if frame is None:
+            return {"error": "No frame available from camera"}
         
         # Encode frame as JPEG base64
         import cv2
+        logger.info("Encoding frame, shape=%s", frame.shape)
         _, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
         b64_image = base64.b64encode(buffer).decode('utf-8')
+        logger.info("Frame encoded, size=%d bytes", len(b64_image))
         
+        # Send to OpenClaw for vision analysis (OpenAI Realtime doesn't have vision)
+        if deps.openclaw_bridge is not None and deps.openclaw_bridge.is_connected:
+            logger.info("Sending image to OpenClaw for vision analysis...")
+            response = await deps.openclaw_bridge.chat(
+                "Describe what you see in this image. Be specific about people, objects, and the environment. Keep it concise (2-3 sentences).",
+                image_b64=b64_image,
+                system_context="You are looking through your robot camera. Describe what you see naturally, as if you're the one looking.",
+            )
+            if response.content and not response.error:
+                logger.info("OpenClaw vision response: %s", response.content[:100])
+                return {
+                    "status": "success",
+                    "description": response.content,
+                }
+            else:
+                logger.warning("OpenClaw vision failed: %s", response.error)
+        
+        # Fallback if OpenClaw not available
         return {
             "status": "success",
-            "b64_im": b64_image,
-            "description": "Image captured from robot camera"
+            "description": "I captured an image but couldn't analyze it. My vision system needs OpenClaw to process what I see."
         }
     except Exception as e:
+        logger.error("Camera tool error: %s", e, exc_info=True)
         return {"error": str(e)}
 
 
