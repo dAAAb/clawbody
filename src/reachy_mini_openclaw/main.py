@@ -24,7 +24,7 @@ import logging
 import argparse
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 
