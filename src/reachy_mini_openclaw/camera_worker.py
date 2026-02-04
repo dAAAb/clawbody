@@ -63,6 +63,13 @@ class CameraWorker:
         
         # Tracking scale factor (adjust responsiveness)
         self.tracking_scale = 0.6  # Scale down movements for smoother tracking
+        
+        # Smoothing factor for exponential moving average (0.0-1.0)
+        # Lower = smoother but slower response, Higher = faster but more jitter
+        self.smoothing_alpha = 0.15  # Smooth out jitter from detection noise
+        
+        # Previous smoothed offsets for EMA calculation
+        self._smoothed_offsets: List[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
     def get_latest_frame(self) -> Optional[NDArray[np.uint8]]:
         """Get the latest frame (thread-safe).
@@ -203,12 +210,23 @@ class CameraWorker:
             translation *= self.tracking_scale
             rotation *= self.tracking_scale
 
+            # Apply exponential moving average (EMA) smoothing to reduce jitter
+            # new_smoothed = alpha * new_value + (1 - alpha) * old_smoothed
+            alpha = self.smoothing_alpha
+            new_offsets = [
+                translation[0], translation[1], translation[2],
+                rotation[0], rotation[1], rotation[2],
+            ]
+            
+            smoothed = [
+                alpha * new_offsets[i] + (1 - alpha) * self._smoothed_offsets[i]
+                for i in range(6)
+            ]
+            self._smoothed_offsets = smoothed
+
             # Thread-safe update of face tracking offsets
             with self.face_tracking_lock:
-                self.face_tracking_offsets = [
-                    translation[0], translation[1], translation[2],
-                    rotation[0], rotation[1], rotation[2],
-                ]
+                self.face_tracking_offsets = smoothed
 
         else:
             # No face detected - handle smooth interpolation back to neutral
