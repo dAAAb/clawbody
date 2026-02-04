@@ -210,6 +210,15 @@ a {
     backdrop-filter: blur(10px);
 }
 
+.hero-gif {
+    width: 100%;
+    max-width: 500px;
+    height: auto;
+    border-radius: 14px;
+    display: block;
+    margin: 0 auto;
+}
+
 .architecture-preview {
     background: rgba(0, 0, 0, 0.4);
     border-radius: 14px;
