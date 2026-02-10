@@ -199,6 +199,7 @@ class MovementState:
     last_activity_time: float = 0.0
     speech_offsets: SpeechOffsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     face_tracking_offsets: SpeechOffsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    thinking_offsets: SpeechOffsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     last_primary_pose: Optional[FullBodyPose] = None
     
     def update_activity(self) -> None:
@@ -277,6 +278,12 @@ class MovementManager:
         self._pending_speech_offsets: SpeechOffsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
         self._speech_dirty = False
         
+        # Processing/thinking animation state
+        self._processing = False
+        self._processing_start_time = 0.0
+        self._thinking_amplitude = 0.0  # 0..1 envelope for smooth fade in/out
+        self._thinking_antenna_offsets: Tuple[float, float] = (0.0, 0.0)
+        
         # Shared state lock
         self._shared_lock = threading.Lock()
         self._shared_last_activity = self.state.last_activity_time
@@ -299,6 +306,15 @@ class MovementManager:
     def set_listening(self, listening: bool) -> None:
         """Set listening state (freezes antennas). Thread-safe."""
         self._command_queue.put(("set_listening", listening))
+        
+    def set_processing(self, processing: bool) -> None:
+        """Set processing state (triggers thinking animation). Thread-safe.
+        
+        When True, the robot shows a continuous 'thinking' animation as
+        secondary offsets -- gentle head sway and asymmetric antenna scanning.
+        Face tracking continues underneath since this is additive.
+        """
+        self._command_queue.put(("set_processing", processing))
         
     def is_idle(self) -> bool:
         """Check if robot has been idle. Thread-safe."""
@@ -333,6 +349,50 @@ class MovementManager:
             # No camera worker, use neutral offsets
             self.state.face_tracking_offsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
             
+    def _update_thinking_offsets(self, current_time: float) -> None:
+        """Compute thinking animation as secondary offsets.
+        
+        Produces a gentle head sway (yaw drift, slight upward pitch, z bob)
+        and asymmetric antenna scanning pattern. The amplitude envelope
+        smoothly ramps up over 0.5s and decays over 0.5s for organic feel.
+        """
+        # Update amplitude envelope
+        if self._processing:
+            # Ramp up over 0.5s
+            elapsed = current_time - self._processing_start_time
+            self._thinking_amplitude = min(1.0, elapsed / 0.5)
+        elif self._thinking_amplitude > 0:
+            # Smooth decay at 2.0/s (full decay in 0.5s)
+            self._thinking_amplitude = max(
+                0.0, self._thinking_amplitude - 2.0 * self.target_period
+            )
+        
+        # If fully decayed, zero everything and bail
+        if self._thinking_amplitude < 0.001:
+            self._thinking_amplitude = 0.0
+            self.state.thinking_offsets = (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+            self._thinking_antenna_offsets = (0.0, 0.0)
+            return
+        
+        amp = self._thinking_amplitude
+        t = current_time - self._processing_start_time
+        
+        # Head offsets (radians / metres -- degrees=False, mm=False)
+        # Slow yaw drift: ±12° at 0.15 Hz
+        yaw = amp * np.deg2rad(12) * np.sin(2 * np.pi * 0.15 * t)
+        # Slight upward pitch: 6° base + 3° oscillation at 0.2 Hz
+        pitch = amp * (np.deg2rad(6) + np.deg2rad(3) * np.sin(2 * np.pi * 0.2 * t))
+        # Gentle z bob: 3 mm at 0.12 Hz
+        z = amp * 0.003 * np.sin(2 * np.pi * 0.12 * t)
+        
+        self.state.thinking_offsets = (0.0, 0.0, z, 0.0, pitch, yaw)
+        
+        # Antenna offsets: asymmetric scan (phase offset creates "searching" feel)
+        # ±20° at 0.4 Hz, right antenna lags left by ~70° of phase
+        left_ant = amp * np.deg2rad(20) * np.sin(2 * np.pi * 0.4 * t)
+        right_ant = amp * np.deg2rad(20) * np.sin(2 * np.pi * 0.4 * t + 1.2)
+        self._thinking_antenna_offsets = (left_ant, right_ant)
+        
     def _handle_command(self, cmd: str, payload: Any, current_time: float) -> None:
         """Handle a single command."""
         if cmd == "queue_move":
@@ -356,6 +416,23 @@ class MovementManager:
                 else:
                     self._antenna_unfreeze_blend = 0.0
                 self.state.update_activity()
+        elif cmd == "set_processing":
+            desired = bool(payload)
+            if desired and not self._processing:
+                self._processing = True
+                self._processing_start_time = self._now()
+                # Interrupt breathing so thinking animation is clean
+                if self._breathing_active and isinstance(self.state.current_move, BreathingMove):
+                    self.state.current_move = None
+                    self.state.move_start_time = None
+                    self._breathing_active = False
+                self.state.update_activity()
+                logger.debug("Processing started - thinking animation active")
+            elif not desired and self._processing:
+                self._processing = False
+                # Amplitude will decay smoothly in _update_thinking_offsets
+                self.state.update_activity()
+                logger.debug("Processing ended - thinking animation decaying")
                 
     def _manage_move_queue(self, current_time: float) -> None:
         """Advance the move queue."""
@@ -380,6 +457,7 @@ class MovementManager:
             and not self.move_queue
             and not self._is_listening
             and not self._breathing_active
+            and not self._processing
         ):
             idle_for = current_time - self.state.last_activity_time
             if idle_for >= self.idle_inactivity_delay:
@@ -429,9 +507,11 @@ class MovementManager:
         return (neutral, (0.0, 0.0), 0.0)
         
     def _get_secondary_pose(self) -> FullBodyPose:
-        """Get secondary offsets."""
+        """Get secondary offsets (speech + face tracking + thinking)."""
         offsets = [
-            self.state.speech_offsets[i] + self.state.face_tracking_offsets[i]
+            self.state.speech_offsets[i]
+            + self.state.face_tracking_offsets[i]
+            + self.state.thinking_offsets[i]
             for i in range(6)
         ]
         
@@ -440,7 +520,7 @@ class MovementManager:
             roll=offsets[3], pitch=offsets[4], yaw=offsets[5],
             degrees=False, mm=False
         )
-        return (secondary_head, (0.0, 0.0), 0.0)
+        return (secondary_head, self._thinking_antenna_offsets, 0.0)
         
     def _compose_pose(self, current_time: float) -> FullBodyPose:
         """Compose final pose from primary and secondary."""
@@ -529,6 +609,9 @@ class MovementManager:
             # Update face tracking offsets from camera worker
             self._update_face_tracking(loop_start)
             
+            # Update thinking animation offsets
+            self._update_thinking_offsets(loop_start)
+            
             # Compose pose
             head, antennas, body_yaw = self._compose_pose(loop_start)
             
@@ -555,6 +638,8 @@ class MovementManager:
             "queue_size": len(self.move_queue),
             "is_listening": self._is_listening,
             "breathing_active": self._breathing_active,
+            "processing": self._processing,
+            "thinking_amplitude": round(self._thinking_amplitude, 3),
             "last_commanded_pose": {
                 "head": self._last_commanded_pose[0].tolist(),
                 "antennas": self._last_commanded_pose[1],

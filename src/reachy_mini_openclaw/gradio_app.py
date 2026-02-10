@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def launch_gradio(
-    gateway_url: str = "http://localhost:18789",
+    gateway_url: str = "ws://localhost:18789",
     robot_name: Optional[str] = None,
     enable_camera: bool = True,
     enable_openclaw: bool = True,

@@ -3,6 +3,7 @@
 Provides:
 - 30Hz+ camera polling with thread-safe frame buffering
 - Face tracking integration with smooth interpolation
+- Room scanning when no face is detected
 - Latest frame always available for tools
 - Smooth return to neutral when face is lost
 
@@ -26,7 +27,14 @@ logger = logging.getLogger(__name__)
 
 
 class CameraWorker:
-    """Thread-safe camera worker with frame buffering and face tracking."""
+    """Thread-safe camera worker with frame buffering and face tracking.
+    
+    State machine for face tracking:
+        SCANNING  -- no face known, sweeping the room to find one
+        TRACKING  -- face detected, following it with head offsets
+        WAITING   -- face just lost, holding position briefly
+        RETURNING -- interpolating back to neutral before scanning again
+    """
 
     def __init__(self, reachy_mini: ReachyMini, head_tracker: Any = None) -> None:
         """Initialize camera worker.
@@ -61,15 +69,29 @@ class CameraWorker:
         # Track state changes
         self.previous_head_tracking_state = self.is_head_tracking_enabled
         
-        # Tracking scale factor (adjust responsiveness)
-        self.tracking_scale = 0.6  # Scale down movements for smoother tracking
+        # Tracking scale factor (proportional gain for the camera-head servo loop).
+        # 0.85 provides accurate convergence via closed-loop feedback while
+        # avoiding single-frame overshoot that causes jitter.
+        self.tracking_scale = 0.85
         
         # Smoothing factor for exponential moving average (0.0-1.0)
-        # Lower = smoother but slower response, Higher = faster but more jitter
-        self.smoothing_alpha = 0.15  # Smooth out jitter from detection noise
+        # At 25Hz with alpha=0.25, 95% convergence ~0.5s -- smooth enough to
+        # filter detection noise, responsive enough to feel like eye contact.
+        self.smoothing_alpha = 0.25
         
         # Previous smoothed offsets for EMA calculation
         self._smoothed_offsets: List[float] = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        
+        # --- Room scanning state ---
+        # When no face is visible, the robot periodically sweeps the room.
+        self._scanning = False
+        self._scanning_start_time = 0.0
+        # Scanning pattern: sinusoidal yaw sweep
+        self._scan_yaw_amplitude = np.deg2rad(35)  # ±35 degrees
+        self._scan_period = 8.0  # seconds for a full left-right-left cycle
+        self._scan_pitch_offset = np.deg2rad(3)  # slight upward tilt while scanning
+        # Start scanning immediately at boot (before any face has ever been seen)
+        self._ever_seen_face = False
 
     def get_latest_frame(self) -> Optional[NDArray[np.uint8]]:
         """Get the latest frame (thread-safe).
@@ -100,8 +122,13 @@ class CameraWorker:
         Args:
             enabled: Whether to enable face tracking
         """
+        if enabled and not self.is_head_tracking_enabled:
+            # Reset smoothed offsets so tracking converges quickly from scratch
+            self._smoothed_offsets = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            # Start scanning immediately when re-enabled
+            self._start_scanning()
         self.is_head_tracking_enabled = enabled
-        logger.info(f"Head tracking {'enabled' if enabled else 'disabled'}")
+        logger.info("Head tracking %s", "enabled" if enabled else "disabled")
 
     def start(self) -> None:
         """Start the camera worker loop in a thread."""
@@ -117,6 +144,41 @@ class CameraWorker:
             self._thread.join(timeout=2.0)
         logger.info("Camera worker stopped")
 
+    # ------------------------------------------------------------------
+    # Scanning helpers
+    # ------------------------------------------------------------------
+
+    def _start_scanning(self) -> None:
+        """Begin the room-scanning sweep."""
+        if not self._scanning:
+            self._scanning = True
+            self._scanning_start_time = time.time()
+            logger.debug("Started room scanning")
+
+    def _stop_scanning(self) -> None:
+        """Stop the room-scanning sweep."""
+        if self._scanning:
+            self._scanning = False
+            logger.debug("Stopped room scanning")
+
+    def _update_scanning_offsets(self, current_time: float) -> None:
+        """Compute scanning offsets -- a slow yaw sweep with slight pitch up.
+        
+        The sweep is sinusoidal so the head slows at the extremes (more natural)
+        and the face detector gets a chance to catch faces at the edges.
+        """
+        t = current_time - self._scanning_start_time
+        
+        yaw = float(self._scan_yaw_amplitude * np.sin(2 * np.pi * t / self._scan_period))
+        pitch = float(self._scan_pitch_offset)
+        
+        with self.face_tracking_lock:
+            self.face_tracking_offsets = [0.0, 0.0, 0.0, 0.0, pitch, yaw]
+
+    # ------------------------------------------------------------------
+    # Main loop
+    # ------------------------------------------------------------------
+
     def _working_loop(self) -> None:
         """Main camera worker loop.
         
@@ -127,6 +189,10 @@ class CameraWorker:
         # Neutral pose for interpolation target
         neutral_pose = np.eye(4, dtype=np.float32)
         self.previous_head_tracking_state = self.is_head_tracking_enabled
+        
+        # Begin scanning right away so the robot looks for a face on startup
+        if self.is_head_tracking_enabled and self.head_tracker is not None:
+            self._start_scanning()
 
         while not self._stop_event.is_set():
             try:
@@ -146,6 +212,7 @@ class CameraWorker:
                         self.last_face_detected_time = current_time
                         self.interpolation_start_time = None
                         self.interpolation_start_pose = None
+                        self._stop_scanning()
 
                     # Update tracking state
                     self.previous_head_tracking_state = self.is_head_tracking_enabled
@@ -161,7 +228,7 @@ class CameraWorker:
                 time.sleep(0.04)
 
             except Exception as e:
-                logger.error(f"Camera worker error: {e}")
+                logger.error("Camera worker error: %s", e)
                 time.sleep(0.1)
 
         logger.debug("Camera worker thread exited")
@@ -182,7 +249,18 @@ class CameraWorker:
         eye_center, _ = self.head_tracker.get_head_position(frame)
 
         if eye_center is not None:
-            # Face detected - immediately switch to tracking
+            # Face detected!
+            if not self._ever_seen_face:
+                self._ever_seen_face = True
+                logger.info("Face detected for the first time")
+            
+            # Stop scanning if we were scanning
+            if self._scanning:
+                self._stop_scanning()
+                # Seed the EMA from current scanning offsets for smooth transition
+                with self.face_tracking_lock:
+                    self._smoothed_offsets = list(self.face_tracking_offsets)
+
             self.last_face_detected_time = current_time
             self.interpolation_start_time = None  # Stop any interpolation
 
@@ -206,7 +284,7 @@ class CameraWorker:
             translation = target_pose[:3, 3]
             rotation = R.from_matrix(target_pose[:3, :3]).as_euler("xyz", degrees=False)
 
-            # Scale down for smoother tracking
+            # Scale for smoother closed-loop convergence
             translation *= self.tracking_scale
             rotation *= self.tracking_scale
 
@@ -229,8 +307,13 @@ class CameraWorker:
                 self.face_tracking_offsets = smoothed
 
         else:
-            # No face detected - handle smooth interpolation back to neutral
-            self._interpolate_to_neutral(current_time, neutral_pose)
+            # No face detected
+            if self._scanning:
+                # Already scanning -- keep sweeping the room
+                self._update_scanning_offsets(current_time)
+            else:
+                # Not scanning yet -- go through the wait/return/scan sequence
+                self._interpolate_to_neutral(current_time, neutral_pose)
 
     def _interpolate_to_neutral(
         self, 
@@ -239,11 +322,15 @@ class CameraWorker:
     ) -> None:
         """Interpolate face tracking offsets back to neutral when face is lost.
         
+        Once interpolation completes, automatically starts room scanning.
+        
         Args:
             current_time: Current timestamp
             neutral_pose: Target neutral pose matrix
         """
         if self.last_face_detected_time is None:
+            # Never seen a face -- go straight to scanning
+            self._start_scanning()
             return
 
         time_since_face_lost = current_time - self.last_face_detected_time
@@ -286,8 +373,10 @@ class CameraWorker:
                     rotation[0], rotation[1], rotation[2],
                 ]
 
-            # If interpolation is complete, reset timing
+            # If interpolation is complete, start scanning the room
             if t >= 1.0:
                 self.last_face_detected_time = None
                 self.interpolation_start_time = None
                 self.interpolation_start_pose = None
+                self._smoothed_offsets = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+                self._start_scanning()

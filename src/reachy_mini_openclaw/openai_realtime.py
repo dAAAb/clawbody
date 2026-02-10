@@ -277,6 +277,7 @@ OpenClaw has access to many capabilities you don't have directly.""",
         if event_type == "input_audio_buffer.speech_started":
             # User started speaking - stop any current output
             self._speaking = False
+            self.deps.movement_manager.set_processing(False)
             while not self.output_queue.empty():
                 try:
                     self.output_queue.get_nowait()
@@ -308,6 +309,9 @@ OpenClaw has access to many capabilities you don't have directly.""",
             
         # Audio output from TTS
         if event_type == "response.audio.delta":
+            # Audio arriving means we have a response - stop thinking animation
+            self.deps.movement_manager.set_processing(False)
+            
             # Feed to head wobbler for expressive movement
             if self.deps.head_wobbler is not None:
                 self.deps.head_wobbler.feed(event.delta)
@@ -337,6 +341,7 @@ OpenClaw has access to many capabilities you don't have directly.""",
         # Response completed - sync conversation to OpenClaw
         if event_type == "response.done":
             self._speaking = False
+            self.deps.movement_manager.set_processing(False)
             if self.deps.head_wobbler is not None:
                 self.deps.head_wobbler.reset()
             logger.debug("Response completed")
@@ -365,6 +370,10 @@ OpenClaw has access to many capabilities you don't have directly.""",
             return
             
         logger.info("Tool call: %s(%s)", tool_name, args_json[:50] if len(args_json) > 50 else args_json)
+        
+        # Start thinking animation while we process the tool call.
+        # It will stop when the next audio delta arrives or response completes.
+        self.deps.movement_manager.set_processing(True)
         
         try:
             if tool_name == "ask_openclaw":

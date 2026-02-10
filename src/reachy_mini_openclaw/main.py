@@ -98,7 +98,7 @@ Examples:
     parser.add_argument(
         "--gateway-url",
         type=str,
-        default=os.getenv("OPENCLAW_GATEWAY_URL", "http://localhost:18789"),
+        default=os.getenv("OPENCLAW_GATEWAY_URL", "ws://localhost:18789"),
         help="OpenClaw gateway URL (from OPENCLAW_GATEWAY_URL env or default)"
     )
     parser.add_argument(
@@ -142,7 +142,7 @@ class ClawBodyCore:
     
     def __init__(
         self,
-        gateway_url: str = "http://localhost:18789",
+        gateway_url: str = "ws://localhost:18789",
         robot_name: Optional[str] = None,
         enable_camera: bool = True,
         enable_openclaw: bool = True,
@@ -401,6 +401,28 @@ class ClawBodyCore:
             else:
                 logger.warning("OpenClaw gateway not available - some features disabled")
         
+        # Enable motors and move to neutral pose
+        logger.info("Enabling motors and moving to neutral position...")
+        try:
+            self.robot.enable_motors()
+            from reachy_mini.utils import create_head_pose
+            neutral = create_head_pose(0, 0, 0, 0, 0, 0, degrees=True)
+            self.robot.goto_target(
+                head=neutral,
+                antennas=[0.0, 0.0],
+                duration=2.0,
+                body_yaw=0.0,
+            )
+            time.sleep(2)  # Wait for goto to complete
+            logger.info("Robot at neutral position with motors enabled")
+        except Exception as e:
+            logger.error("Failed to initialize robot pose: %s", e)
+        
+        # Wire up camera worker to movement manager for face tracking
+        if self.camera_worker is not None:
+            self.movement_manager.camera_worker = self.camera_worker
+            logger.info("Face tracking connected to movement system")
+        
         # Start movement system
         logger.info("Starting movement system...")
         self.movement_manager.start()
@@ -461,6 +483,15 @@ class ClawBodyCore:
         if self.camera_worker is not None:
             self.camera_worker.stop()
         
+        # Disconnect OpenClaw bridge
+        if self.openclaw_bridge is not None:
+            try:
+                asyncio.get_event_loop().run_until_complete(
+                    self.openclaw_bridge.disconnect()
+                )
+            except Exception as e:
+                logger.debug("OpenClaw disconnect: %s", e)
+        
         # Close resources if we own them
         if self._owns_robot:
             try:
@@ -492,7 +523,7 @@ class ClawBodyApp:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        gateway_url = os.getenv("OPENCLAW_GATEWAY_URL", "http://localhost:18789")
+        gateway_url = os.getenv("OPENCLAW_GATEWAY_URL", "ws://localhost:18789")
         
         app = ClawBodyCore(
             gateway_url=gateway_url,
