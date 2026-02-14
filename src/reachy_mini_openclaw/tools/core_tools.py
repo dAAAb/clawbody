@@ -363,11 +363,12 @@ async def _handle_emotion(args: dict, deps: ToolDependencies) -> dict:
         "thinking": ["up", "left"],
         "confused": ["left", "right", "front"],
         "excited": ["up", "down", "up", "front"],
-        # Common aliases / gestures
-        "wave": ["right", "front"],
-        "nod": ["down", "up", "front"],
-        "shake": ["left", "right", "left", "front"],
-        "bounce": ["down", "front"],
+        # Common aliases / gestures (exaggerated macros)
+        # Note: amplitude depends on Reachy safety/limits; we exaggerate by repetition + snappier timing.
+        "wave": ["right", "left", "right", "front"],
+        "nod": ["down", "up", "down", "up", "front"],
+        "shake": ["left", "right", "left", "right", "left", "front"],
+        "bounce": ["down", "up", "down", "front"],
     }
 
     sequence = emotion_sequences.get(emotion_name, ["front"])
@@ -381,7 +382,7 @@ async def _handle_emotion(args: dict, deps: ToolDependencies) -> dict:
                 direction=direction,
                 start_pose=current_head,
                 start_antennas=tuple(current_ant),
-                duration=0.5,
+                duration=0.32,
             )
             deps.movement_manager.queue_move(move)
 

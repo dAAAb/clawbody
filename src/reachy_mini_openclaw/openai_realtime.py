@@ -479,28 +479,28 @@ OpenClaw has access to many capabilities you don't have directly.""",
 
         # 1) Shy / hide face
         if (not self._gesture_fired["shy"]) and contains_any(tail, ["害羞", "不好意思", "別看", "不要看", "好害羞"]):
-            await self._queue_headlook_sequence(["down", "front"], [0.6, 1.0])
+            await self._queue_headlook_sequence(["down", "front"], [0.8, 1.0])
             self._gesture_fired["shy"] = True
             self._gesture_last_t = now
             return
 
         # 2) Negative -> shake head
         if (not self._gesture_fired["neg"]) and contains_any(tail, ["不是", "不對", "不行", "沒有", "別", "不要", "不可以"]):
-            await self._queue_headlook_sequence(["left", "right", "left", "front"], [0.25, 0.25, 0.25, 0.4])
+            await self._queue_headlook_sequence(["left", "right", "left", "right", "left", "front"], [0.22, 0.22, 0.22, 0.22, 0.22, 0.35])
             self._gesture_fired["neg"] = True
             self._gesture_last_t = now
             return
 
         # 3) Positive -> nod
         if (not self._gesture_fired["pos"]) and contains_any(tail, ["沒錯", "對", "可以", "好", "好的", "行"]):
-            await self._queue_headlook_sequence(["down", "up", "front"], [0.25, 0.25, 0.5])
+            await self._queue_headlook_sequence(["down", "up", "down", "up", "front"], [0.22, 0.22, 0.22, 0.22, 0.40])
             self._gesture_fired["pos"] = True
             self._gesture_last_t = now
             return
 
         # 4) Question -> tilt (approx) using a gentle side glance
         if (not self._gesture_fired["q"]) and ("?" in tail or "？" in tail or tail.endswith("嗎") or tail.endswith("呢")):
-            await self._queue_headlook_sequence(["right", "front"], [0.4, 0.6])
+            await self._queue_headlook_sequence(["right", "left", "right", "front"], [0.22, 0.22, 0.22, 0.45])
             self._gesture_fired["q"] = True
             self._gesture_last_t = now
             return
