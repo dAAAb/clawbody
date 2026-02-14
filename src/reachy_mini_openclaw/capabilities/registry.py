@@ -33,8 +33,33 @@ def _safe_import(module: str):
         return None
 
 
+
+
+def _get_dances_available_moves() -> dict[str, Any] | None:
+    """Return AVAILABLE_MOVES mapping from reachy_mini_dances_library, if present.
+
+    The dances library has had multiple public layouts:
+    - reachy_mini_dances_library.collection.dance: AVAILABLE_MOVES (current)
+    - reachy_mini_dances_library.dances: callable factories (older)
+
+    We normalize to a dict-like mapping when possible.
+    """
+    mod = _safe_import("reachy_mini_dances_library.collection.dance")
+    if mod is not None and hasattr(mod, "AVAILABLE_MOVES"):
+        moves = getattr(mod, "AVAILABLE_MOVES")
+        if isinstance(moves, dict):
+            return moves
+
+    return None
+
+
 def list_dances() -> list[str]:
     """List dance names from reachy_mini_dances_library if installed."""
+    moves = _get_dances_available_moves()
+    if moves is not None:
+        return sorted(moves.keys())
+
+    # Fallback: older layout with callable symbols under reachy_mini_dances_library.dances
     mod = _safe_import("reachy_mini_dances_library.dances")
     if mod is None:
         return []
@@ -44,7 +69,6 @@ def list_dances() -> list[str]:
         if name.startswith("_"):
             continue
         obj = getattr(mod, name, None)
-        # Dances are typically classes/factories
         if callable(obj):
             names.append(name)
     return sorted(set(names))
@@ -52,11 +76,35 @@ def list_dances() -> list[str]:
 
 def get_dance_factory(name: str) -> Optional[Callable[[], Any]]:
     """Return a 0-arg factory that creates a dance move, if available."""
+    moves = _get_dances_available_moves()
+    if moves is not None:
+        # Preferred API: DanceMove(move_name)
+        dance_move_mod = _safe_import("reachy_mini_dances_library.dance_move")
+        if dance_move_mod is None or not hasattr(dance_move_mod, "DanceMove"):
+            return None
+        DanceMove = getattr(dance_move_mod, "DanceMove")
+        if name not in moves:
+            return None
+
+        def _factory():
+            return DanceMove(name)
+
+        return _factory
+
+    # Fallback older layout
     mod = _safe_import("reachy_mini_dances_library.dances")
-    if mod is None:
+    if mod is None or not hasattr(mod, name):
         return None
-    if not hasattr(mod, name):
+
+    obj = getattr(mod, name)
+    if not callable(obj):
         return None
+
+    def _factory():
+        return obj()
+
+    return _factory
+
 
     obj = getattr(mod, name)
     if not callable(obj):
