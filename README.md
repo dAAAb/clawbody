@@ -148,7 +148,7 @@ If running with `--gradio`, access the UI at `http://reachy-mini.local:7860`:
 
 ### 2. Voice Command Shutdown
 You can tell the AI to stop directly:
-- **Example**: "Hey Clawson, please shutdown", "Stop service and rest", "Goodbye".
+- **Example**: "Hey Clawbody, please shutdown", "Stop service and rest", "Goodbye".
 - The AI will bid you farewell and safely exit the application after a 3-second delay.
 
 ---

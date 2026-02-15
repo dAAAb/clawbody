@@ -172,7 +172,7 @@ TOOL_SPECS = [
     {
         "type": "function",
         "name": "shutdown",
-        "description": "Stop the robot service and shutdown the AI assistant app. Use this when the user says goodbye or explicitly asks you to stop or turn off.",
+        "description": "Stop the robot service and shutdown the AI assistant app. Use this when the user says goodbye or explicitly asks you to stop or turn off (e.g., 'Clawbody, please shutdown').",
         "parameters": {
             "type": "object",
             "properties": {},
