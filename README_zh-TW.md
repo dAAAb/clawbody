@@ -80,27 +80,51 @@ cd clawbody
 
 ## 🤖 自動化與背景執行 (Automation)
 
-在實體 Reachy Mini 上，您可以將 ClawBody 註冊為受管理的服務。**強烈建議在註冊時加入 `--gradio` 參數，以便進行遠端管理。**
+在實體 Reachy Mini 上，您可以將 ClawBody 設定為 **systemd 服務**，讓它在開機時自動啟動。**強烈建議加入 `--gradio` 參數，以便進行遠端管理。**
 
-### 1. 註冊應用程式
-在機器人終端機執行以下指令。請注意使用 `--args "--gradio"` 來開啟網頁介面功能：
+### 1. 建立 systemd 服務檔案
 
 ```bash
-/venvs/apps_venv/bin/reachy-mini-daemon app register clawbody --path /home/pollen/clawbody --args "--gradio"
+sudo nano /etc/systemd/system/clawbody.service
+```
+
+貼入以下內容：
+
+```ini
+[Unit]
+Description=ClawBody - OpenClaw AI Robot Body
+After=network-online.target reachy-mini-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pollen
+WorkingDirectory=/home/pollen/clawbody
+EnvironmentFile=/home/pollen/clawbody/.env
+ExecStart=/venvs/apps_venv/bin/clawbody --gradio
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 ### 2. 設定開機自啟動
 ```bash
-/venvs/apps_venv/bin/reachy-mini-daemon app enable clawbody
+sudo systemctl daemon-reload
+sudo systemctl enable clawbody.service
+sudo systemctl start clawbody.service
 ```
 
 ### 3. 管理指令
 | 動作 | 指令 |
 |--------|---------|
-| **啟動** | `/venvs/apps_venv/bin/reachy-mini-daemon app start clawbody` |
-| **停止** | `/venvs/apps_venv/bin/reachy-mini-daemon app stop clawbody` |
-| **查看狀態** | `/venvs/apps_venv/bin/reachy-mini-daemon app list` |
-| **查看日誌** | `/venvs/apps_venv/bin/reachy-mini-daemon app logs clawbody` |
+| **啟動** | `sudo systemctl start clawbody` |
+| **停止** | `sudo systemctl stop clawbody` |
+| **重啟** | `sudo systemctl restart clawbody` |
+| **查看狀態** | `sudo systemctl status clawbody` |
+| **查看日誌** | `journalctl -u clawbody -f` |
+| **關閉自動啟動** | `sudo systemctl disable clawbody` |
 
 ---
 

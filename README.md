@@ -113,27 +113,51 @@ cd clawbody
 
 ## 🤖 Automation & Background Service
 
-On a physical Reachy Mini, you can register ClawBody as a managed service using the `reachy-mini-daemon` tool so it starts automatically when the robot boots up. **We recommend enabling `--gradio` for remote management.**
+On a physical Reachy Mini, you can set up ClawBody as a **systemd service** so it starts automatically when the robot boots up. **We recommend enabling `--gradio` for remote management.**
 
-### 1. Register the Application
-Run this command from any directory. Note the use of `--args "--gradio"` to enable the web UI:
+### 1. Create the systemd Service File
 
 ```bash
-/venvs/apps_venv/bin/reachy-mini-daemon app register clawbody --path /home/pollen/clawbody --args "--gradio"
+sudo nano /etc/systemd/system/clawbody.service
+```
+
+Paste the following:
+
+```ini
+[Unit]
+Description=ClawBody - OpenClaw AI Robot Body
+After=network-online.target reachy-mini-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pollen
+WorkingDirectory=/home/pollen/clawbody
+EnvironmentFile=/home/pollen/clawbody/.env
+ExecStart=/venvs/apps_venv/bin/clawbody --gradio
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
 ```
 
 ### 2. Enable Auto-start on Boot
 ```bash
-/venvs/apps_venv/bin/reachy-mini-daemon app enable clawbody
+sudo systemctl daemon-reload
+sudo systemctl enable clawbody.service
+sudo systemctl start clawbody.service
 ```
 
 ### 3. Management Commands
 | Action | Command |
 |--------|---------|
-| **Start** | `/venvs/apps_venv/bin/reachy-mini-daemon app start clawbody` |
-| **Stop** | `/venvs/apps_venv/bin/reachy-mini-daemon app stop clawbody` |
-| **Status** | `/venvs/apps_venv/bin/reachy-mini-daemon app list` |
-| **Logs** | `/venvs/apps_venv/bin/reachy-mini-daemon app logs clawbody` |
+| **Start** | `sudo systemctl start clawbody` |
+| **Stop** | `sudo systemctl stop clawbody` |
+| **Restart** | `sudo systemctl restart clawbody` |
+| **Status** | `sudo systemctl status clawbody` |
+| **Logs** | `journalctl -u clawbody -f` |
+| **Disable Auto-start** | `sudo systemctl disable clawbody` |
 
 ---
 
