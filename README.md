@@ -137,6 +137,22 @@ Run this command from any directory. It tells the daemon where to find your app 
 
 ---
 
+## 🛑 Remote Shutdown (No SSH Required)
+
+For easier management on physical robots, you can stop the service without using the terminal:
+
+### 1. Web UI Shutdown (Gradio)
+If running with `--gradio`, access the UI at `http://reachy-mini.local:7860`:
+- Click the **"🛑 Shutdown App"** button.
+- This will completely terminate the background Python process.
+
+### 2. Voice Command Shutdown
+You can tell the AI to stop directly:
+- **Example**: "Hey Clawson, please shutdown", "Stop service and rest", "Goodbye".
+- The AI will bid you farewell and safely exit the application after a 3-second delay.
+
+---
+
 ## ⚙️ Configuration & Remote Deployment
 
 ### Connecting to Zeabur / Remote OpenClaw

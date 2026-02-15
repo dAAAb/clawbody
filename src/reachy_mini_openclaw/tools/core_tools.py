@@ -169,6 +169,16 @@ TOOL_SPECS = [
             "required": []
         }
     },
+    {
+        "type": "function",
+        "name": "shutdown",
+        "description": "Stop the robot service and shutdown the AI assistant app. Use this when the user says goodbye or explicitly asks you to stop or turn off.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+            "required": []
+        }
+    },
 ]
 
 
@@ -211,6 +221,7 @@ async def dispatch_tool_call(
         "body_sway": _handle_body_sway,
         "stop_moves": _handle_stop_moves,
         "idle": _handle_idle,
+        "shutdown": _handle_shutdown,
     }
     
     handler = handlers.get(tool_name)
@@ -222,6 +233,24 @@ async def dispatch_tool_call(
     except Exception as e:
         logger.error("Tool '%s' failed: %s", tool_name, e, exc_info=True)
         return {"error": str(e)}
+
+
+async def _handle_shutdown(args: dict, deps: ToolDependencies) -> dict:
+    """Handle the shutdown tool."""
+    logger.warning("AI requested shutdown!")
+    
+    async def _do_shutdown():
+        # Give a short delay to allow the response to be spoken
+        await asyncio.sleep(3.0)
+        logger.warning("Initiating app shutdown...")
+        os._exit(0) # Force exit
+        
+    asyncio.create_task(_do_shutdown())
+    
+    return {
+        "status": "success", 
+        "message": "Shutting down the assistant app as requested. Goodbye!"
+    }
 
 
 async def _handle_look(args: dict, deps: ToolDependencies) -> dict:
