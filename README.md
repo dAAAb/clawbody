@@ -105,22 +105,46 @@ git clone https://github.com/dAAAb/clawbody
 cd clawbody
 /venvs/apps_venv/bin/pip install -e .
 
-# Run directly on hardware using the app environment's bin
+# Run directly on hardware
 /venvs/apps_venv/bin/clawbody
 ```
 
-> **Note**: For persistent background operation, the OpenClaw Bridge can be managed via the `reachy-mini-daemon`'s app registry.
+---
+
+## 🤖 Automation & Background Service
+
+On a physical Reachy Mini, you can register ClawBody as a managed service so it starts automatically when the robot boots up.
+
+### 1. Register the Application
+Run this command from any directory (it uses absolute paths). Replace `/home/pollen/clawbody` if your path is different:
+
+```bash
+/venvs/apps_venv/bin/reachy-mini-app register clawbody --path /home/pollen/clawbody
+```
+
+### 2. Enable Auto-start on Boot
+```bash
+/venvs/apps_venv/bin/reachy-mini-app enable clawbody
+```
+
+### 3. Management Commands
+| Action | Command |
+|--------|---------|
+| **Start** | `/venvs/apps_venv/bin/reachy-mini-app start clawbody` |
+| **Stop** | `/venvs/apps_venv/bin/reachy-mini-app stop clawbody` |
+| **Status** | `/venvs/apps_venv/bin/reachy-mini-app list` |
+| **Logs** | `/venvs/apps_venv/bin/reachy-mini-app logs clawbody` |
 
 ---
 
 ## ⚙️ Configuration & Remote Deployment
 
 ### Connecting to Zeabur / Remote OpenClaw
-When connecting to a remote OpenClaw instance (e.g., hosted on Zeabur), pay close attention to your `OPENCLAW_GATEWAY_URL`:
+When connecting to a remote OpenClaw instance (e.g., hosted on Zeabur):
 
 1. **Protocol Matters**: Use `https://` for remote instances.
-2. **WebSocket (WSS)**: ClawBody communicates with the gateway via WebSockets. Ensure your remote deployment correctly handles `wss://` traffic.
-3. **CORS/Auth**: Ensure your `OPENCLAW_TOKEN` is correctly set and that the remote gateway allows connections from your local machine.
+2. **WebSocket (WSS)**: ClawBody communicates via WebSockets. Ensure your remote deployment handles `wss://` traffic correctly.
+3. **CORS/Auth**: Verify `OPENCLAW_TOKEN` and gateway permissions.
 
 Example `.env`:
 ```bash
