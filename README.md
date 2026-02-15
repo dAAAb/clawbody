@@ -55,12 +55,22 @@ ClawBody bridges the gap between high-level AI intelligence (OpenClaw) and low-l
 ## 🚀 Getting Started
 
 ### 💡 Critical Usage Note: Virtual Environment
-If you installed ClawBody within a virtual environment (recommended), you **must** activate it before running any commands:
+If you installed ClawBody within a virtual environment, you **must** use the environment's python/bin to run it.
+
+**For local/simulator setup:**
 ```bash
 source .venv/bin/activate
+clawbody --gradio
 ```
 
-### Installation for Simulator
+**For physical robot setup:**
+```bash
+/venvs/apps_venv/bin/clawbody
+```
+
+---
+
+### Option A: Installation for Simulator
 
 ```bash
 git clone https://github.com/dAAAb/clawbody
@@ -75,25 +85,31 @@ cp .env.example .env
 # Terminal 1: Run Simulator
 reachy-mini-daemon --sim
 
-# Terminal 2: Start ClawBody (Ensure env is activated!)
+# Terminal 2: Start ClawBody
 source .venv/bin/activate
 clawbody --gradio
 ```
 
-### Installation on Physical Robot
+---
+
+### Option B: Installation on Physical Robot
+
+The Reachy Mini robot comes with a pre-configured application environment at `/venvs/apps_venv/`.
 
 ```bash
 # Connect to your robot
 ssh pollen@reachy-mini.local
 
-# Clone and install in the app environment
+# Clone and install into the robot's app environment
 git clone https://github.com/dAAAb/clawbody
 cd clawbody
 /venvs/apps_venv/bin/pip install -e .
 
-# Run directly on hardware
-clawbody
+# Run directly on hardware using the app environment's bin
+/venvs/apps_venv/bin/clawbody
 ```
+
+> **Note**: For persistent background operation, the OpenClaw Bridge can be managed via the `reachy-mini-daemon`'s app registry.
 
 ---
 

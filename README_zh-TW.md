@@ -22,12 +22,22 @@ ClawBody 彌合了高層級 AI 智慧 (OpenClaw) 與底層機器人控制 (Reach
 ## 🚀 快速開始
 
 ### 💡 重要執行說明：虛擬環境
-如果您是在虛擬環境中安裝 ClawBody（建議做法），在執行任何指令前，**必須** 先進入該環境：
+如果您是在虛擬環境中安裝 ClawBody，執行時 **必須** 指定該環境的 python/bin 路徑。
+
+**本地或模擬器環境：**
 ```bash
 source .venv/bin/activate
+clawbody --gradio
 ```
 
-### 模擬器安裝步驟
+**實體機器人環境：**
+```bash
+/venvs/apps_venv/bin/clawbody
+```
+
+---
+
+### 選項 A：模擬器安裝步驟
 
 ```bash
 git clone https://github.com/dAAAb/clawbody
@@ -42,36 +52,42 @@ cp .env.example .env
 # 終端機 1：啟動模擬器
 reachy-mini-daemon --sim
 
-# 終端機 2：執行 ClawBody (務必確保已進入 env！)
+# 終端機 2：執行 ClawBody
 source .venv/bin/activate
 clawbody --gradio
 ```
 
-### 實體機器人安裝步驟
+---
+
+### 選項 B：實體機器人安裝步驟
+
+Reachy Mini 機器人預設提供了一個位於 `/venvs/apps_venv/` 的應用程式虛擬環境。
 
 ```bash
 # SSH 登入機器人
 ssh pollen@reachy-mini.local
 
-# 在 app 環境中複製並安裝
+# 複製並安裝至機器人的應用程式環境中
 git clone https://github.com/dAAAb/clawbody
 cd clawbody
 /venvs/apps_venv/bin/pip install -e .
 
-# 直接在硬體上執行
-clawbody
+# 使用該環境的 bin 直接在硬體上執行
+/venvs/apps_venv/bin/clawbody
 ```
+
+> **提示**：若需要持久化背景執行，可透過 `reachy-mini-daemon` 的應用程式註冊機制來管理 OpenClaw 橋接器。
 
 ---
 
 ## ⚙️ 配置與遠端部署心得
 
 ### 連接到 Zeabur 或遠端 OpenClaw
-在將本地 ClawBody 連接到部署在遠端（如 Zeabur）的 OpenClaw Gateway 時，請注意以下細節：
+在連接到部署在遠端（如 Zeabur）的 OpenClaw Gateway 時，請注意：
 
 1. **協定與安全性**：遠端連線必須使用 `https://`。
-2. **WebSocket (WSS) 挑戰**：ClawBody 與 Gateway 之間透過 WebSocket 通訊。請確保您的遠端部署環境已正確處理 `wss://` 流量，否則會發生連線中斷。
-3. **CORS 與 Token**：請確保 `.env` 中的 `OPENCLAW_TOKEN` 正確無誤，且遠端 Gateway 已設定允許來自您本地 IP 的連線請求。
+2. **WebSocket (WSS) 挑戰**：ClawBody 與 Gateway 之間透過 WebSocket 通訊。請確保您的遠端部署環境已正確處理 `wss://` 流量。
+3. **CORS 與 Token**：請確保 `.env` 中的 `OPENCLAW_TOKEN` 正確。
 
 `.env` 範例：
 ```bash
