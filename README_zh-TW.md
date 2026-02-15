@@ -4,7 +4,7 @@
 
 [English Version](README.md)
 
-ClawBody 彌合了高層級 AI 智慧 (OpenClaw) 與底層機器人控制 (Reachy Mini) 之間的溝溝。透過利用 OpenAI 的 Realtime API，它建立了一個超低延遲的語音對話循環，讓您的 AI 助手 Clawson 能夠在現實世界中看、聽並以物理方式表達情感。
+ClawBody 彌合了高層級 AI 智慧 (OpenClaw) 與底層機器人控制 (Reachy Mini) 之間的鴻溝。透過利用 OpenAI 的 Realtime API，它建立了一個超低延遲的語音對話循環，讓您的 AI 助手 Clawson 能夠在現實世界中看、聽並以物理方式表達情感。
 
 ![Reachy Mini Dance](https://huggingface.co/spaces/pollen-robotics/reachy_mini_conversation_app/resolve/main/docs/assets/reachy_mini_dance.gif)
 
@@ -80,27 +80,27 @@ cd clawbody
 
 ## 🤖 自動化與背景執行 (Automation)
 
-在實體 Reachy Mini 上，您可以將 ClawBody 註冊為受管理的服務，使其在機器人開機時自動啟動。
+在實體 Reachy Mini 上，您可以將 ClawBody 註冊為受管理的服務，使用 `reachy-mini-daemon` 工具使其在機器人開機時自動啟動。
 
 ### 1. 註冊應用程式
-在機器人終端機的任何目錄下執行以下指令（使用絕對路徑）。如果您的安裝路徑不同，請自行修改：
+在機器人終端機執行以下指令（使用絕對路徑）。這會告知 daemon 程式碼的位置以及如何讀取 `.env`：
 
 ```bash
-/venvs/apps_venv/bin/reachy-mini-app register clawbody --path /home/pollen/clawbody
+/venvs/apps_venv/bin/reachy-mini-daemon app register clawbody --path /home/pollen/clawbody
 ```
 
 ### 2. 設定開機自啟動
 ```bash
-/venvs/apps_venv/bin/reachy-mini-app enable clawbody
+/venvs/apps_venv/bin/reachy-mini-daemon app enable clawbody
 ```
 
 ### 3. 管理指令
 | 動作 | 指令 |
 |--------|---------|
-| **啟動** | `/venvs/apps_venv/bin/reachy-mini-app start clawbody` |
-| **停止** | `/venvs/apps_venv/bin/reachy-mini-app stop clawbody` |
-| **查看狀態** | `/venvs/apps_venv/bin/reachy-mini-app list` |
-| **查看日誌** | `/venvs/apps_venv/bin/reachy-mini-app logs clawbody` |
+| **啟動** | `/venvs/apps_venv/bin/reachy-mini-daemon app start clawbody` |
+| **停止** | `/venvs/apps_venv/bin/reachy-mini-daemon app stop clawbody` |
+| **查看狀態** | `/venvs/apps_venv/bin/reachy-mini-daemon app list` |
+| **查看日誌** | `/venvs/apps_venv/bin/reachy-mini-daemon app logs clawbody` |
 
 ---
 

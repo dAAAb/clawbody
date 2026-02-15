@@ -113,27 +113,27 @@ cd clawbody
 
 ## 🤖 Automation & Background Service
 
-On a physical Reachy Mini, you can register ClawBody as a managed service so it starts automatically when the robot boots up.
+On a physical Reachy Mini, you can register ClawBody as a managed service using the `reachy-mini-daemon` tool so it starts automatically when the robot boots up.
 
 ### 1. Register the Application
-Run this command from any directory (it uses absolute paths). Replace `/home/pollen/clawbody` if your path is different:
+Run this command from any directory. It tells the daemon where to find your app and its `.env` file:
 
 ```bash
-/venvs/apps_venv/bin/reachy-mini-app register clawbody --path /home/pollen/clawbody
+/venvs/apps_venv/bin/reachy-mini-daemon app register clawbody --path /home/pollen/clawbody
 ```
 
 ### 2. Enable Auto-start on Boot
 ```bash
-/venvs/apps_venv/bin/reachy-mini-app enable clawbody
+/venvs/apps_venv/bin/reachy-mini-daemon app enable clawbody
 ```
 
 ### 3. Management Commands
 | Action | Command |
 |--------|---------|
-| **Start** | `/venvs/apps_venv/bin/reachy-mini-app start clawbody` |
-| **Stop** | `/venvs/apps_venv/bin/reachy-mini-app stop clawbody` |
-| **Status** | `/venvs/apps_venv/bin/reachy-mini-app list` |
-| **Logs** | `/venvs/apps_venv/bin/reachy-mini-app logs clawbody` |
+| **Start** | `/venvs/apps_venv/bin/reachy-mini-daemon app start clawbody` |
+| **Stop** | `/venvs/apps_venv/bin/reachy-mini-daemon app stop clawbody` |
+| **Status** | `/venvs/apps_venv/bin/reachy-mini-daemon app list` |
+| **Logs** | `/venvs/apps_venv/bin/reachy-mini-daemon app logs clawbody` |
 
 ---
 
