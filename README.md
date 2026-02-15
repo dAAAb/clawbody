@@ -45,44 +45,22 @@ ClawBody bridges the gap between high-level AI intelligence (OpenClaw) and low-l
 
 ## 🚀 Key Improvements (Feb 2026)
 
-The project has recently undergone significant architectural upgrades to enhance "embodied intelligence":
-
-- **Natural Embodiment**: Introduced **Natural Turn-Level Gestures** and **Speech-Synced Body Sway**. The robot no longer stands still while talking; it moves fluidly to match the rhythm and sentiment of the conversation.
-- **Dynamic Capability Discovery**: A new **Capability Registry** automatically scans the Reachy daemon for recorded expressions and dances. This allows the AI to discover and use new robot behaviors without code changes.
-- **Context-Aware Triggers**: Added support for **Cue Word Gestures**. The robot can now trigger specific movements based on explicit words or phrases detected in the live transcript.
-- **Enhanced Perception**: Optimized MediaPipe tracking data formats and resolved OpenClaw Gateway CORS issues for a more stable real-time vision loop.
-
----
-
-## ✨ Features
-
-- **👁️ Intelligent Eye Contact**: Real-time face tracking (MediaPipe/YOLO) at 25Hz ensures the robot is always engaged with the user.
-- **🎭 Expressive Gestures**: Automatic gestures synced to voice output, including "exaggerated macro gestures" for emphasis.
-- **🧠 OpenClaw Integration**: Full access to OpenClaw tools (calendar, smart home, web search) delivered through a physical persona.
-- **💃 Emotion Engine**: Play back any recorded emotion or dance from the library, triggered dynamically by the AI.
-- **🎤 Low-Latency Voice**: Powered by OpenAI Realtime API for natural, human-like response times.
-- **🖥️ Simulator-First**: Full support for MuJoCo simulation, allowing development without physical hardware.
-
----
-
-## 🏗️ Architecture
-
-ClawBody acts as the orchestrator between three major systems:
-1. **OpenAI Realtime API**: Handles the audio stream and generates low-latency responses.
-2. **OpenClaw Gateway**: The "brain" that provides personality, memory, and tool-calling capabilities.
-3. **Reachy Mini SDK/Daemon**: The "nervous system" controlling the robot's servos and sensors.
+- **Natural Embodiment**: Introduced **Natural Turn-Level Gestures** and **Speech-Synced Body Sway**.
+- **Dynamic Capability Discovery**: A new **Capability Registry** automatically scans for recorded expressions and dances.
+- **Context-Aware Triggers**: Added support for **Cue Word Gestures** from live transcripts.
+- **Enhanced Perception**: Optimized MediaPipe tracking and resolved OpenClaw Gateway CORS issues.
 
 ---
 
 ## 🚀 Getting Started
 
-### Prerequisites
-- Python 3.11+
-- [Reachy Mini SDK](https://github.com/pollen-robotics/reachy_mini)
-- [OpenClaw Gateway](https://github.com/openclaw/openclaw)
-- OpenAI API Key (Realtime API access)
+### 💡 Critical Usage Note: Virtual Environment
+If you installed ClawBody within a virtual environment (recommended), you **must** activate it before running any commands:
+```bash
+source .venv/bin/activate
+```
 
-### Option A: Installation for Simulator
+### Installation for Simulator
 
 ```bash
 git clone https://github.com/dAAAb/clawbody
@@ -97,11 +75,12 @@ cp .env.example .env
 # Terminal 1: Run Simulator
 reachy-mini-daemon --sim
 
-# Terminal 2: Start ClawBody
+# Terminal 2: Start ClawBody (Ensure env is activated!)
+source .venv/bin/activate
 clawbody --gradio
 ```
 
-### Option B: Installation on Physical Robot
+### Installation on Physical Robot
 
 ```bash
 # Connect to your robot
@@ -118,13 +97,31 @@ clawbody
 
 ---
 
-## ⚙️ Configuration
+## ⚙️ Configuration & Remote Deployment
 
-Your `.env` file controls the core integration:
-- `OPENAI_API_KEY`: Required for voice processing.
-- `OPENCLAW_GATEWAY_URL`: Points to your local or remote OpenClaw instance.
-- `OPENCLAW_TOKEN`: Authorization for the gateway.
-- `ENABLE_FACE_TRACKING`: Set to `true` (default) for eye contact.
+### Connecting to Zeabur / Remote OpenClaw
+When connecting to a remote OpenClaw instance (e.g., hosted on Zeabur), pay close attention to your `OPENCLAW_GATEWAY_URL`:
+
+1. **Protocol Matters**: Use `https://` for remote instances.
+2. **WebSocket (WSS)**: ClawBody communicates with the gateway via WebSockets. Ensure your remote deployment correctly handles `wss://` traffic.
+3. **CORS/Auth**: Ensure your `OPENCLAW_TOKEN` is correctly set and that the remote gateway allows connections from your local machine.
+
+Example `.env`:
+```bash
+OPENCLAW_GATEWAY_URL=https://your-openclaw-on-zeabur.zeabur.app
+OPENCLAW_TOKEN=your-secure-token
+```
+
+---
+
+## ✨ Features
+
+- **👁️ Intelligent Eye Contact**: Real-time face tracking (MediaPipe/YOLO) at 25Hz.
+- **🎭 Expressive Gestures**: Automatic gestures synced to voice output.
+- **🧠 OpenClaw Integration**: Full tool-calling capabilities through a physical persona.
+- **💃 Emotion Engine**: Dynamic discovery and playback of pre-recorded behaviors.
+- **🎤 Low-Latency Voice**: Powered by OpenAI Realtime API.
+- **🖥️ Simulator-First**: Full support for MuJoCo simulation.
 
 ---
 
