@@ -2,6 +2,8 @@
 
 **為您的 OpenClaw AI 代理提供實體機器人身體！**
 
+[English Version](README.md)
+
 ClawBody 將 OpenClaw 的 AI 智慧與 Reachy Mini 的表現力機器人身體相結合，利用 OpenAI 的 Realtime API 實現超靈敏的語音對話。您的 OpenClaw 助手 (Clawson) 現在可以在現實世界中看、聽、說與移動。
 
 ![Reachy Mini Dance](https://huggingface.co/spaces/pollen-robotics/reachy_mini_conversation_app/resolve/main/docs/assets/reachy_mini_dance.gif)
