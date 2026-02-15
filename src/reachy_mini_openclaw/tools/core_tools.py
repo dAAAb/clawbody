@@ -12,6 +12,7 @@ import json
 import logging
 import base64
 import asyncio
+import os
 from dataclasses import dataclass
 from typing import Any, Optional, TYPE_CHECKING
 
@@ -236,20 +237,29 @@ async def dispatch_tool_call(
 
 
 async def _handle_shutdown(args: dict, deps: ToolDependencies) -> dict:
-    """Handle the shutdown tool."""
+    """Handle the shutdown tool. Puts the robot to sleep before exiting."""
     logger.warning("AI requested shutdown!")
     
     async def _do_shutdown():
         # Give a short delay to allow the response to be spoken
         await asyncio.sleep(3.0)
+        
+        # Put the robot to sleep (head down, antennas folded)
+        try:
+            logger.info("Putting robot to sleep before shutdown...")
+            deps.robot.goto_sleep()
+            logger.info("Robot is now sleeping.")
+        except Exception as e:
+            logger.error("Failed to put robot to sleep: %s", e)
+        
         logger.warning("Initiating app shutdown...")
-        os._exit(0) # Force exit
+        os._exit(0)  # Force exit
         
     asyncio.create_task(_do_shutdown())
     
     return {
         "status": "success", 
-        "message": "Shutting down the assistant app as requested. Goodbye!"
+        "message": "Putting the robot to sleep and shutting down. Goodbye!"
     }
 
 
